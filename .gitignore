@@ -1,0 +1,70 @@
+# Terraform state files
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Terraform directories
+**/.terraform/*
+**/.terragrunt-cache/*
+
+# Variable files that might contain secrets
+*.tfvars
+*.tfvars.json
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# SSH keys
+*.pem
+*.key
+*_rsa
+*_dsa
+!cacert.pem  # Allow CA certs
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Terraform lock file (team decision)
+# .terraform.lock.hcl
+
+# Auto-generated backend files
+backend.tf
+
+# AWS config files (if you have them locally)
+.aws/
+aws-credentials
+aws/
+
+# Logs
+*.log
+!.gitkeep
+
+# Sensitive data
+secrets/
+*.secret
+aws/
+aws/dist/
