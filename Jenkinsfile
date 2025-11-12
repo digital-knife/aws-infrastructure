@@ -176,23 +176,23 @@ spec:
                     echo "INSTANCE_TYPE: ${INSTANCE_TYPE}"
                     echo "=========================================="
                     echo "Listing repository structure:"
-                    ls -R cloud-projects/
+                    ls -R
                     echo "Checking contents of terragrunt.hcl for environment: ${ENV}"
                     if [ -z "${ENV}" ]; then
-                        echo "Warning: ENV is empty, defaulting to parent directory"
+                        echo "Warning: ENV is empty, defaulting to dev"
                         ENV="dev"
                     fi
-                    if [ -f "cloud-projects/${ENV}/terragrunt.hcl" ]; then
-                        echo "Contents of cloud-projects/${ENV}/terragrunt.hcl:"
-                        cat cloud-projects/${ENV}/terragrunt.hcl
+                    if [ -f "${ENV}/terragrunt.hcl" ]; then
+                        echo "Contents of ${ENV}/terragrunt.hcl:"
+                        cat ${ENV}/terragrunt.hcl
                     else
-                        echo "Warning: cloud-projects/${ENV}/terragrunt.hcl not found"
+                        echo "Warning: ${ENV}/terragrunt.hcl not found"
                     fi
-                    if [ -f "cloud-projects/terragrunt.hcl" ]; then
-                        echo "Contents of cloud-projects/terragrunt.hcl:"
-                        cat cloud-projects/terragrunt.hcl
+                    if [ -f "root.hcl" ]; then
+                        echo "Contents of root.hcl:"
+                        cat root.hcl
                     else
-                        echo "Warning: cloud-projects/terragrunt.hcl not found"
+                        echo "Warning: root.hcl not found"
                     fi
                 '''
             }
@@ -244,7 +244,7 @@ spec:
                         error('VALIDATION FAILED: Environment parameter is required. Please select "dev" or "prod".')
                     }
                     
-                    // Only validate subnet CIDRs if they are actually provided (not empty and not 'null' string)
+                    // Only validate subnet CIDRs if they are actually provided
                     if (env.PUBLIC_SUBNET_CIDR && env.PUBLIC_SUBNET_CIDR != '' && env.PUBLIC_SUBNET_CIDR != 'null') {
                         if (!env.PUBLIC_SUBNET_CIDR.startsWith(env.VPC_CIDR_PREFIX)) {
                             error("VALIDATION FAILED: Public subnet CIDR '${env.PUBLIC_SUBNET_CIDR}' is outside the ${env.ENV} VPC range (${env.VPC_CIDR}). Public subnet must start with ${env.VPC_CIDR_PREFIX}.x.x")
@@ -254,7 +254,7 @@ spec:
                         echo "Public subnet CIDR: Using auto-assignment"
                     }
                     
-                    // Only validate private subnet CIDR if it's actually provided (not empty and not 'null' string)
+                    // Only validate private subnet CIDR if it's actually provided
                     if (env.PRIVATE_SUBNET_CIDR && env.PRIVATE_SUBNET_CIDR != '' && env.PRIVATE_SUBNET_CIDR != 'null') {
                         if (!env.PRIVATE_SUBNET_CIDR.startsWith(env.VPC_CIDR_PREFIX)) {
                             error("VALIDATION FAILED: Private subnet CIDR '${env.PRIVATE_SUBNET_CIDR}' is outside the ${env.ENV} VPC range (${env.VPC_CIDR}). Private subnet must start with ${env.VPC_CIDR_PREFIX}.x.x")
@@ -290,18 +290,18 @@ spec:
                         set -e
                         export AWS_DEFAULT_REGION=${AWS_REGION}
                         echo "Checking directory structure for environment: ${ENV}"
-                        if [ ! -d "cloud-projects/${ENV}" ]; then
-                            echo "Error: Directory cloud-projects/${ENV} does not exist"
+                        if [ ! -d "${ENV}" ]; then
+                            echo "Error: Directory ${ENV} does not exist"
                             exit 1
                         fi
-                        if [ ! -f "cloud-projects/${ENV}/terragrunt.hcl" ]; then
-                            echo "Error: terragrunt.hcl not found in cloud-projects/${ENV}"
+                        if [ ! -f "${ENV}/terragrunt.hcl" ]; then
+                            echo "Error: terragrunt.hcl not found in ${ENV}"
                             exit 1
                         fi
-                        if [ ! -f "cloud-projects/terragrunt.hcl" ]; then
-                            echo "Warning: terragrunt.hcl not found in cloud-projects, terragrunt.hcl may fail if it includes this file"
+                        if [ ! -f "root.hcl" ]; then
+                            echo "Warning: root.hcl not found, terragrunt may fail if it includes this file"
                         fi
-                        cd cloud-projects/${ENV}
+                        cd ${ENV}
                         echo "Running terragrunt init in $(pwd)"
                         terragrunt init
                     '''
@@ -317,13 +317,11 @@ spec:
                         #!/bin/bash
                         set -e
                         export AWS_DEFAULT_REGION=${AWS_REGION}
-                        cd cloud-projects/${ENV}
+                        cd ${ENV}
                         echo "Running terragrunt plan in $(pwd)"
                         
-                        # Build command - only pass overrides, let Terragrunt handle defaults
                         CMD="terragrunt plan"
                         
-                        # Only override if user explicitly provided values
                         if [ -n "${AWS_REGION}" ] && [ "${AWS_REGION}" != "null" ]; then
                             CMD="${CMD} -var=\"aws_region=${AWS_REGION}\""
                             echo "Overriding aws_region with: ${AWS_REGION}"
@@ -382,13 +380,11 @@ spec:
                         #!/bin/bash
                         set -e
                         export AWS_DEFAULT_REGION=${AWS_REGION}
-                        cd cloud-projects/${ENV}
+                        cd ${ENV}
                         echo "Running terragrunt apply in $(pwd)"
                         
-                        # Build command - only pass overrides, let Terragrunt handle defaults
                         CMD="terragrunt apply -auto-approve"
                         
-                        # Only override if user explicitly provided values
                         if [ -n "${AWS_REGION}" ] && [ "${AWS_REGION}" != "null" ]; then
                             CMD="${CMD} -var=\"aws_region=${AWS_REGION}\""
                         fi
@@ -439,7 +435,7 @@ spec:
                         #!/bin/bash
                         set -e
                         export AWS_DEFAULT_REGION=${AWS_REGION}
-                        cd cloud-projects/${ENV}
+                        cd ${ENV}
                         echo "Running terragrunt destroy in $(pwd)"
                         terragrunt destroy -auto-approve
                     '''
@@ -459,8 +455,7 @@ spec:
                         echo "Validating resources in region: ${AWS_DEFAULT_REGION}"
                         echo "=========================================="
                         
-                        # Get the actual S3 bucket name from terragrunt output
-                        cd cloud-projects/${ENV}
+                        cd ${ENV}
                         BUCKET_NAME=$(terragrunt output -raw s3_bucket_name 2>/dev/null || echo "")
                         
                         echo "Checking EC2 instances..."
@@ -491,17 +486,17 @@ spec:
                     #!/bin/bash
                     set -e
                     export AWS_DEFAULT_REGION=${AWS_REGION}
-                    echo "Running post-action in cloud-projects/${ENV}"
-                    if [ -d "cloud-projects/${ENV}" ]; then
-                        cd cloud-projects/${ENV}
+                    echo "Running post-action in ${ENV}"
+                    if [ -d "${ENV}" ]; then
+                        cd ${ENV}
                         echo "Generating output in $(pwd)"
                         terragrunt output -json > cloud-receipt.json || echo "Failed to generate output"
                     else
-                        echo "Warning: Directory cloud-projects/${ENV} does not exist, skipping output"
+                        echo "Warning: Directory ${ENV} does not exist, skipping output"
                     fi
                 '''
             }
-            archiveArtifacts artifacts: "cloud-projects/${ENV}/cloud-receipt.json", allowEmptyArchive: true
+            archiveArtifacts artifacts: "${ENV}/cloud-receipt.json", allowEmptyArchive: true
         }
         failure {
             withCredentials([aws(credentialsId: 'd690f807-aa7f-4f36-8d44-8d0ba71dc975', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
@@ -511,13 +506,13 @@ spec:
                             #!/bin/bash
                             set -e
                             export AWS_DEFAULT_REGION=${AWS_REGION}
-                            echo "Running cleanup due to failure in cloud-projects/${ENV}"
-                            if [ -d "cloud-projects/${ENV}" ]; then
-                                cd cloud-projects/${ENV}
+                            echo "Running cleanup due to failure in ${ENV}"
+                            if [ -d "${ENV}" ]; then
+                                cd ${ENV}
                                 echo "Running terragrunt destroy in $(pwd)"
                                 terragrunt destroy -auto-approve || true
                             else
-                                echo "Warning: Directory cloud-projects/${ENV} does not exist, skipping destroy"
+                                echo "Warning: Directory ${ENV} does not exist, skipping destroy"
                             fi
                         '''
                     }
