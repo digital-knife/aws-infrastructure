@@ -2,7 +2,7 @@
 
 Enterprise-grade multi-environment AWS infrastructure deployment using Terraform, Terragrunt, and Jenkins automation workflows.
 
-## 🏗️ Architecture
+## Architecture
 
 **3-Tier VPC Design:**
 ```
@@ -17,7 +17,7 @@ Private Subnets (10.0.2.0/24 | 10.1.2.0/24)
   └── Application Tier (Port 8080)
 ```
 
-## 🚀 Features
+## Features
 
 - **Multi-Environment**: Isolated dev/prod with Terragrunt
 - **Remote State**: S3 backend with DynamoDB locking
@@ -25,25 +25,7 @@ Private Subnets (10.0.2.0/24 | 10.1.2.0/24)
 - **Cost-Optimized**: S3 lifecycle policies (30d→IA, 90d→Glacier)
 - **Automated Deployment**: Jenkins workflow with validation & approval gates
 
-## 📁 Project Structure
-```
-├── terraform-state-backend/   # Bootstrap S3 + DynamoDB (one-time)
-├── dev/                       # Development environment
-├── prod/                      # Production environment
-├── root.hcl                   # Terragrunt root config
-├── main.tf                    # VPC, subnets, gateways
-├── ec2.tf                     # EC2 instances
-├── security-groups.tf         # Network security rules
-├── iam.tf                     # IAM roles & policies
-├── s3.tf                      # S3 bucket config
-├── outputs.tf                 # Terraform outputs
-├── variables.tf               # Input variables
-├── locals.tf                  # Local values
-└── Jenkinsfile                # Deployment automation
-```
-
-## 🚀 Quick Start
-
+## Quick Start
 ### Bootstrap State Backend (One-Time)
 ```bash
 cd terraform-state-backend
@@ -70,7 +52,7 @@ terragrunt apply
 - Review plan
 - Approve deployment
 
-## 📊 Infrastructure Details
+## Infrastructure Details
 
 ### Environments
 
@@ -111,25 +93,14 @@ terragrunt apply
 2. Terraform syntax validation
 3. Post-deployment resource verification (EC2 + S3)
 
-## 🔒 Security Features
-
-- ✅ Remote state encryption (AES256)
-- ✅ State locking (prevents concurrent modifications)
-- ✅ IAM least-privilege policies
-- ✅ Security group network isolation
-- ✅ No hardcoded credentials (Jenkins credential store)
-- ✅ SSM Session Manager (eliminates SSH keys)
-- ✅ S3 access logging
-- ✅ VPC flow logs ready (optional)
-
-## 🛠️ Technologies
+## Technologies
 
 - **Terraform**: 1.9.5
 - **Terragrunt**: 0.93.4
 - **AWS Services**: VPC, EC2, S3, IAM, DynamoDB, CloudWatch
 - **CI/CD**: Jenkins (Kubernetes-based agents)
 
-## 📋 Prerequisites
+## Prerequisites
 
 - AWS account with appropriate IAM permissions
 - Jenkins with:
@@ -138,7 +109,7 @@ terragrunt apply
   - Pipeline job created
 - Terraform & Terragrunt (auto-installed by pipeline)
 
-## 🔄 State Management
+## State Management
 
 **Backend Configuration:**
 - **Bucket**: `tf-state-bucket9999`
@@ -147,7 +118,7 @@ terragrunt apply
 - **Versioning**: Enabled
 - **Lifecycle**: 30d→IA, 90d→Glacier, 365d→Delete
 
-## 📖 Best Practices Implemented
+## Best Practices in use 
 
 - ✅ Infrastructure as Code (100% declarative)
 - ✅ GitOps workflow (changes via Git)
