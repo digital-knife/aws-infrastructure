@@ -1,41 +1,13 @@
-resource "aws_security_group" "bastion" {
-  name        = local.sg_bastion_name
-  description = "Security group for bastion host - restricted SSH access"
+# ============================================================================
+# ALB Security Group - Allows HTTP/HTTPS from internet
+# ============================================================================
+
+resource "aws_security_group" "alb" {
+  name        = "${local.name_prefix}-sg-alb"
+  description = "Security group for Application Load Balancer - HTTP/HTTPS from internet"
   vpc_id      = aws_vpc.main.id
 
-  # SSH only from allowed CIDR (company network or VPN)
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = [var.allowed_ssh_cidr]
-    description = "SSH from company network/VPN only"
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Allow all outbound"
-  }
-
-  tags = merge(
-    local.common_tags,
-    {
-      Name = local.sg_bastion_name
-      Tier = "Management"
-    }
-  )
-}
-
-# Web Tier Security Group
-resource "aws_security_group" "web" {
-  name        = local.sg_web_name
-  description = "Security group for web tier - HTTP/HTTPS and SSH from bastion"
-  vpc_id      = aws_vpc.main.id
-
-  # HTTP from anywhere (will be restricted to ALB later)
+  # HTTP from anywhere
   ingress {
     from_port   = 80
     to_port     = 80
@@ -44,7 +16,7 @@ resource "aws_security_group" "web" {
     description = "HTTP from internet"
   }
 
-  # HTTPS from anywhere (will be restricted to ALB later)
+  # HTTPS from anywhere (for future SSL/TLS)
   ingress {
     from_port   = 443
     to_port     = 443
@@ -53,15 +25,7 @@ resource "aws_security_group" "web" {
     description = "HTTPS from internet"
   }
 
-  # SSH from bastion only
-  ingress {
-    from_port       = 22
-    to_port         = 22
-    protocol        = "tcp"
-    security_groups = [aws_security_group.bastion.id]
-    description     = "SSH from bastion host only"
-  }
-
+  # Outbound to web servers
   egress {
     from_port   = 0
     to_port     = 0
@@ -73,36 +37,31 @@ resource "aws_security_group" "web" {
   tags = merge(
     local.common_tags,
     {
-      Name = local.sg_web_name
-      Tier = "Web"
+      Name = "${local.name_prefix}-sg-alb"
+      Tier = "LoadBalancer"
     }
   )
 }
 
-# Application Tier Security Group
-resource "aws_security_group" "app" {
-  name        = local.sg_app_name
-  description = "Security group for application tier - app port from web tier only"
+# ============================================================================
+# Bastion Security Group - SSH access for administration
+# ============================================================================
+
+resource "aws_security_group" "bastion" {
+  name        = "${local.name_prefix}-sg-bastion"
+  description = "Security group for bastion host - SSH access for administration"
   vpc_id      = aws_vpc.main.id
 
-  # Application port from web tier only
+  # SSH from allowed CIDR (customize this!)
   ingress {
-    from_port       = 8080
-    to_port         = 8080
-    protocol        = "tcp"
-    security_groups = [aws_security_group.web.id]
-    description     = "App port from web tier only"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"] # TODO: Restrict to your IP in production
+    description = "SSH from allowed IPs"
   }
 
-  # SSH from bastion only
-  ingress {
-    from_port       = 22
-    to_port         = 22
-    protocol        = "tcp"
-    security_groups = [aws_security_group.bastion.id]
-    description     = "SSH from bastion host only"
-  }
-
+  # Allow all outbound (for SSM, yum updates, etc.)
   egress {
     from_port   = 0
     to_port     = 0
@@ -114,8 +73,53 @@ resource "aws_security_group" "app" {
   tags = merge(
     local.common_tags,
     {
-      Name = local.sg_app_name
-      Tier = "Application"
+      Name = "${local.name_prefix}-sg-bastion"
+      Tier = "Management"
+    }
+  )
+}
+
+# ============================================================================
+# Web Server Security Group - HTTP from ALB only, SSH from bastion
+# ============================================================================
+
+resource "aws_security_group" "web" {
+  name        = "${local.name_prefix}-sg-web"
+  description = "Security group for web servers - HTTP from ALB, SSH from bastion"
+  vpc_id      = aws_vpc.main.id
+
+  # HTTP from ALB only
+  ingress {
+    from_port       = 80
+    to_port         = 80
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb.id]
+    description     = "HTTP from ALB only"
+  }
+
+  # SSH from bastion only
+  ingress {
+    from_port       = 22
+    to_port         = 22
+    protocol        = "tcp"
+    security_groups = [aws_security_group.bastion.id]
+    description     = "SSH from bastion only"
+  }
+
+  # Allow all outbound (for yum updates, external API calls if needed)
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow all outbound"
+  }
+
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "${local.name_prefix}-sg-web"
+      Tier = "Web"
     }
   )
 }

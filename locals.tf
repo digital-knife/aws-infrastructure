@@ -1,5 +1,8 @@
+# Get AWS account ID for tagging and resource naming
+data "aws_caller_identity" "current" {}
+
 locals {
-  # Common naming prefix
+  # Base naming prefix
   name_prefix = "${var.project_name}-${var.environment}"
 
   # Common tags applied to all resources - with optional vpc_tag
@@ -9,36 +12,25 @@ locals {
       Environment = var.environment
       ManagedBy   = "Terraform"
       Owner       = var.owner
+      AccountID   = data.aws_caller_identity.current.account_id
     },
     var.vpc_tag != "" ? { CustomTag = var.vpc_tag } : {}
   )
 
   # VPC and Networking Names - support custom vpc_name from pipeline
-  vpc_name            = var.vpc_name != "" ? var.vpc_name : "${local.name_prefix}-vpc"
-  igw_name            = "${local.name_prefix}-igw"
-  nat_name            = "${local.name_prefix}-nat"
-  public_subnet_name  = "${local.name_prefix}-public-subnet"
-  private_subnet_name = "${local.name_prefix}-private-subnet"
-  public_rt_name      = "${local.name_prefix}-public-rt"
-  private_rt_name     = "${local.name_prefix}-private-rt"
+  vpc_name = var.vpc_name != "" ? var.vpc_name : "${local.name_prefix}-vpc"
+  igw_name = "${local.name_prefix}-igw"
+  nat_name = "${local.name_prefix}-nat"
 
   # Security Group Names
+  sg_alb_name     = "${local.name_prefix}-sg-alb"
   sg_bastion_name = "${local.name_prefix}-sg-bastion"
   sg_web_name     = "${local.name_prefix}-sg-web"
-  sg_app_name     = "${local.name_prefix}-sg-app"
 
   # IAM Role Names
   iam_role_ec2_name    = "${local.name_prefix}-ec2-role"
   iam_profile_ec2_name = "${local.name_prefix}-ec2-profile"
 
-  # S3 Bucket Names - support custom s3_bucket_name from pipeline
-  s3_bucket_name = var.s3_bucket_name != "" ? var.s3_bucket_name : "${local.name_prefix}-demo-bucket-${data.aws_caller_identity.current.account_id}"
-
-  # KMS Key Aliases
-  kms_s3_alias = "alias/${local.name_prefix}-s3-key"
-
-  # CloudWatch Log Group Names
-  log_group_vpc = "/aws/vpc/${local.name_prefix}"
-  log_group_ec2 = "/aws/ec2/${local.name_prefix}"
-  log_group_s3  = "/aws/s3/${local.name_prefix}"
+  # S3 Bucket Name (must be globally unique)
+  s3_bucket_name = var.s3_bucket_name != "" ? var.s3_bucket_name : "${local.name_prefix}-bucket-${data.aws_caller_identity.current.account_id}"
 }
