@@ -454,8 +454,8 @@ spec:
                         cd ${ENV}
                         
                         echo "Running comprehensive post-deployment health checks..."
-                        chmod +x health_check.sh
-                        ./health_check.sh ${ENV} ${AWS_REGION}
+                        chmod +x ../health_check.sh
+                        ../health_check.sh
                     '''
                 }
             }
