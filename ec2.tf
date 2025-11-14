@@ -15,15 +15,14 @@ resource "aws_instance" "bastion" {
   # User data for bastion setup
   user_data = <<-EOF
               #!/bin/bash
-              yum update -y
-              yum install -y amazon-ssm-agent
+              yum install -y amazon-ssm-agent htop vim wget curl
               systemctl enable amazon-ssm-agent
               systemctl start amazon-ssm-agent
               
-              # Install useful admin tools
-              yum install -y htop vim wget curl
-              
               echo "Bastion host ready - Environment: ${var.environment}" > /etc/motd
+              
+              # Run system updates in background (non-blocking)
+              yum update -y &
               EOF
 
   tags = merge(
@@ -53,10 +52,10 @@ resource "aws_instance" "web_1" {
   # User data for web server setup
   user_data = <<-EOF
               #!/bin/bash
-              yum update -y
+              # Install Apache and SSM FIRST (fast - no updates yet)
               yum install -y httpd amazon-ssm-agent
               
-              # Start and enable Apache
+              # Start Apache IMMEDIATELY so health checks pass
               systemctl start httpd
               systemctl enable httpd
               
@@ -98,6 +97,9 @@ HTML
               # Replace placeholders
               sed -i "s/INSTANCE_ID/$INSTANCE_ID/g" /var/www/html/index.html
               sed -i "s/AZ/$AZ/g" /var/www/html/index.html
+              
+              # Run system updates in background (non-blocking)
+              yum update -y &
               EOF
 
   tags = merge(
@@ -128,10 +130,10 @@ resource "aws_instance" "web_2" {
   # User data for web server setup
   user_data = <<-EOF
               #!/bin/bash
-              yum update -y
+              # Install Apache and SSM FIRST (fast - no updates yet)
               yum install -y httpd amazon-ssm-agent
               
-              # Start and enable Apache
+              # Start Apache IMMEDIATELY so health checks pass
               systemctl start httpd
               systemctl enable httpd
               
@@ -173,6 +175,9 @@ HTML
               # Replace placeholders
               sed -i "s/INSTANCE_ID/$INSTANCE_ID/g" /var/www/html/index.html
               sed -i "s/AZ/$AZ/g" /var/www/html/index.html
+              
+              # Run system updates in background (non-blocking)
+              yum update -y &
               EOF
 
   tags = merge(
