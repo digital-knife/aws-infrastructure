@@ -1,12 +1,19 @@
 #!/bin/bash
 set -e
 
+# Accept environment and region as arguments
+ENV_DIR="${1:-dev}"
+AWS_REGION="${2:-us-east-1}"
+export AWS_DEFAULT_REGION="${AWS_REGION}"
+
 # Retry logic wrapper
 run_health_checks() {
     echo "=========================================="
     echo "POST-DEPLOYMENT HEALTH CHECKS"
     echo "=========================================="
     echo ""
+    echo "Environment: ${ENV_DIR}"
+    echo "Region: ${AWS_REGION}"
     echo "Waiting 30 seconds for AWS resources to stabilize..."
     sleep 30
     echo ""
