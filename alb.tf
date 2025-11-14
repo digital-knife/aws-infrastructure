@@ -9,6 +9,13 @@ resource "aws_lb" "main" {
   enable_http2                     = true
   enable_cross_zone_load_balancing = true
 
+  # ADD THIS BLOCK - Enable access logs to permanent bucket
+  access_logs {
+    bucket  = "centralized-alb-logs-${data.aws_caller_identity.current.account_id}"
+    prefix  = var.environment
+    enabled = true
+  }
+
   tags = merge(
     local.common_tags,
     {
