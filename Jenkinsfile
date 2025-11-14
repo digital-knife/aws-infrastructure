@@ -443,7 +443,7 @@ spec:
             }
         }
 
-        stage('Validation') {
+        stage('Post-Deployment Validation') {
             when { expression { env.ACTION == 'create' || env.ACTION == 'update' } }
             steps {
                 withCredentials([aws(credentialsId: 'd690f807-aa7f-4f36-8d44-8d0ba71dc975', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
@@ -451,28 +451,10 @@ spec:
                         #!/bin/bash
                         set -e
                         export AWS_DEFAULT_REGION=${AWS_REGION}
-                        echo "=========================================="
-                        echo "Validating resources in region: ${AWS_DEFAULT_REGION}"
-                        echo "=========================================="
-                        
                         cd ${ENV}
-                        BUCKET_NAME=$(terragrunt output -raw s3_bucket_name 2>/dev/null || echo "")
                         
-                        echo "Checking EC2 instances..."
-                        aws ec2 describe-instances --filters "Name=tag:Name,Values=public-ec2" --query "Reservations[*].Instances[*].PublicIpAddress" --output text || echo "No public EC2 instances found"
-                        
-                        if [ -n "${BUCKET_NAME}" ]; then
-                            echo "Checking S3 bucket: ${BUCKET_NAME}"
-                            aws s3 ls "s3://${BUCKET_NAME}" || echo "Bucket exists but may be empty"
-                        else
-                            echo "S3 bucket name not available from outputs"
-                        fi
-                        
-                        echo "=========================================="
-                        echo "Validation complete for ${ENV} environment"
-                        echo "VPC CIDR: ${VPC_CIDR}"
-                        echo "Region: ${AWS_DEFAULT_REGION}"
-                        echo "=========================================="
+                        echo "Running comprehensive post-deployment health checks..."
+                        ../health_check.sh
                     '''
                 }
             }
