@@ -156,31 +156,31 @@ spec:
             }
         }
 
-        stage('Debug Directory Structure') {
-            steps {
-                // sh '''
-                //     #!/bin/bash
-                //     set -e
-                //     echo "Checking contents of terragrunt.hcl for environment: ${ENV}"
-                //     if [ -z "${ENV}" ]; then
-                //         echo "Warning: ENV is empty, defaulting to dev"
-                //         ENV="dev"
-                //     fi
-                //     if [ -f "${ENV}/terragrunt.hcl" ]; then
-                //         echo "Contents of ${ENV}/terragrunt.hcl:"
-                //         cat ${ENV}/terragrunt.hcl
-                //     else
-                //         echo "Warning: ${ENV}/terragrunt.hcl not found"
-                //     fi
-                //     if [ -f "root.hcl" ]; then
-                //         echo "Contents of root.hcl:"
-                //         cat root.hcl
-                //     else
-                //         echo "Warning: root.hcl not found"
-                //     fi
-                // '''
-            }
-        }
+        // stage('Debug Directory Structure') {
+        //     steps {
+        //         // sh '''
+        //         //     #!/bin/bash
+        //         //     set -e
+        //         //     echo "Checking contents of terragrunt.hcl for environment: ${ENV}"
+        //         //     if [ -z "${ENV}" ]; then
+        //         //         echo "Warning: ENV is empty, defaulting to dev"
+        //         //         ENV="dev"
+        //         //     fi
+        //         //     if [ -f "${ENV}/terragrunt.hcl" ]; then
+        //         //         echo "Contents of ${ENV}/terragrunt.hcl:"
+        //         //         cat ${ENV}/terragrunt.hcl
+        //         //     else
+        //         //         echo "Warning: ${ENV}/terragrunt.hcl not found"
+        //         //     fi
+        //         //     if [ -f "root.hcl" ]; then
+        //         //         echo "Contents of root.hcl:"
+        //         //         cat root.hcl
+        //         //     else
+        //         //         echo "Warning: root.hcl not found"
+        //         //     fi
+        //         // '''
+        //     }
+        // }
 
         stage('Setup Tools') {
             steps {
