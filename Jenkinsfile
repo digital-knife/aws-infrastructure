@@ -158,43 +158,27 @@ spec:
 
         stage('Debug Directory Structure') {
             steps {
-                sh '''
-                    #!/bin/bash
-                    set -e
-                    echo "=========================================="
-                    echo "Selected Parameters:"
-                    echo "=========================================="
-                    echo "ENV: ${ENV}"
-                    echo "ACTION: ${ACTION}"
-                    echo "AWS_REGION: ${AWS_REGION}"
-                    echo "VPC_CIDR (environment-locked): ${VPC_CIDR}"
-                    echo "VPC_NAME: ${VPC_NAME}"
-                    echo "VPC_TAG: ${VPC_TAG}"
-                    echo "PUBLIC_SUBNET_CIDR: ${PUBLIC_SUBNET_CIDR}"
-                    echo "PRIVATE_SUBNET_CIDR: ${PRIVATE_SUBNET_CIDR}"
-                    echo "S3_BUCKET_NAME: ${S3_BUCKET_NAME}"
-                    echo "INSTANCE_TYPE: ${INSTANCE_TYPE}"
-                    echo "=========================================="
-                    echo "Listing repository structure:"
-                    ls -R
-                    echo "Checking contents of terragrunt.hcl for environment: ${ENV}"
-                    if [ -z "${ENV}" ]; then
-                        echo "Warning: ENV is empty, defaulting to dev"
-                        ENV="dev"
-                    fi
-                    if [ -f "${ENV}/terragrunt.hcl" ]; then
-                        echo "Contents of ${ENV}/terragrunt.hcl:"
-                        cat ${ENV}/terragrunt.hcl
-                    else
-                        echo "Warning: ${ENV}/terragrunt.hcl not found"
-                    fi
-                    if [ -f "root.hcl" ]; then
-                        echo "Contents of root.hcl:"
-                        cat root.hcl
-                    else
-                        echo "Warning: root.hcl not found"
-                    fi
-                '''
+                // sh '''
+                //     #!/bin/bash
+                //     set -e
+                //     echo "Checking contents of terragrunt.hcl for environment: ${ENV}"
+                //     if [ -z "${ENV}" ]; then
+                //         echo "Warning: ENV is empty, defaulting to dev"
+                //         ENV="dev"
+                //     fi
+                //     if [ -f "${ENV}/terragrunt.hcl" ]; then
+                //         echo "Contents of ${ENV}/terragrunt.hcl:"
+                //         cat ${ENV}/terragrunt.hcl
+                //     else
+                //         echo "Warning: ${ENV}/terragrunt.hcl not found"
+                //     fi
+                //     if [ -f "root.hcl" ]; then
+                //         echo "Contents of root.hcl:"
+                //         cat root.hcl
+                //     else
+                //         echo "Warning: root.hcl not found"
+                //     fi
+                // '''
             }
         }
 

@@ -8,13 +8,12 @@ include "root" {
 
 inputs = {
   environment  = "prod"
-  project_name = "demo-project"
   owner        = "DevOps-Team"
   
   aws_region = "us-east-1"
   
   vpc_cidr = "10.1.0.0/16"
-  vpc_name = "prod-vpc"
+  vpc_name = ""
   
   public_subnet_cidr  = ""
   private_subnet_cidr = ""
