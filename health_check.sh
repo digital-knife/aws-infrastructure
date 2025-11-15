@@ -15,7 +15,7 @@ run_health_checks() {
     echo "Environment: ${ENV_DIR}"
     echo "Region: ${AWS_REGION}"
     echo "Waiting 30 seconds for AWS resources to stabilize..."
-    sleep 30
+    sleep 60
     echo ""
 
     # Get outputs from Terragrunt
@@ -113,7 +113,7 @@ run_health_checks() {
     if [ -n "$TG_ARN" ]; then
         echo "   Waiting up to 2 minutes for targets to become healthy..."
         
-        MAX_ATTEMPTS=24
+        MAX_ATTEMPTS=10
         ATTEMPT=0
         HEALTHY_COUNT=0
         
@@ -232,7 +232,7 @@ echo "Attempt 1 of 2..."
 if run_health_checks; then
     echo ""
     echo "=========================================="
-    echo "✅ ALL CRITICAL CHECKS PASSED"
+    echo "ALL CRITICAL CHECKS PASSED"
     echo "=========================================="
     echo "Environment: ${ENV}"
     echo "Region: ${AWS_DEFAULT_REGION}"
@@ -241,7 +241,7 @@ if run_health_checks; then
 else
     echo ""
     echo "=========================================="
-    echo "⚠️  FIRST ATTEMPT FAILED - RETRYING"
+    echo "FIRST ATTEMPT FAILED - RETRYING"
     echo "=========================================="
     echo "Waiting 30 seconds before retry..."
     sleep 30
@@ -251,7 +251,7 @@ else
     if run_health_checks; then
         echo ""
         echo "=========================================="
-        echo "✅ HEALTH CHECKS PASSED ON RETRY"
+        echo "HEALTH CHECKS PASSED ON RETRY"
         echo "=========================================="
         echo "Environment: ${ENV}"
         echo "Region: ${AWS_DEFAULT_REGION}"
@@ -260,7 +260,7 @@ else
     else
         echo ""
         echo "=========================================="
-        echo "❌ HEALTH CHECKS FAILED TWICE"
+        echo "HEALTH CHECKS FAILED TWICE"
         echo "=========================================="
         echo "Infrastructure will be destroyed for investigation"
         echo ""
