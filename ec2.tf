@@ -13,22 +13,20 @@ resource "aws_instance" "bastion" {
 
   user_data = <<-EOF
               #!/bin/bash
-              set -x
-              exec > >(tee /var/log/user-data.log) 2>&1
-              
-              echo "Waiting for internet connectivity..."
-              until sudo ping -c 1 8.8.8.8 &> /dev/null; do
-                echo "Waiting for internet..."
+              echo "Waiting for internet..." > /tmp/user-data.log
+              until ping -c 1 8.8.8.8 &> /dev/null; do
                 sleep 5
               done
+              echo "Internet ready" >> /tmp/user-data.log
               
-              sudo yum install -y amazon-ssm-agent htop vim wget curl
-              sudo systemctl enable amazon-ssm-agent
-              sudo systemctl start amazon-ssm-agent
+              yum install -y amazon-ssm-agent htop vim wget curl >> /tmp/user-data.log 2>&1
+              systemctl enable amazon-ssm-agent
+              systemctl start amazon-ssm-agent
               
-              echo "Bastion ready - ${var.environment}" | sudo tee /etc/motd
+              echo "Bastion ready - ${var.environment}" > /etc/motd
               
-              sudo yum update -y &
+              yum update -y &
+              echo "User data complete" >> /tmp/user-data.log
               EOF
 
   tags = merge(
@@ -58,27 +56,28 @@ resource "aws_instance" "web_1" {
 
   user_data = <<-EOF
               #!/bin/bash
-              set -x
-              exec > >(tee /var/log/user-data.log) 2>&1
+              echo "Starting user_data" > /tmp/user-data.log
+              echo "Waiting for NAT..." >> /tmp/user-data.log
               
-              echo "Waiting for NAT Gateway..."
-              until sudo ping -c 1 8.8.8.8 &> /dev/null; do
-                echo "Still waiting..."
+              until ping -c 1 8.8.8.8 &> /dev/null; do
+                echo "Waiting..." >> /tmp/user-data.log
                 sleep 5
               done
-              echo "Internet ready!"
               
-              sudo yum install -y httpd amazon-ssm-agent
+              echo "Installing httpd" >> /tmp/user-data.log
+              yum install -y httpd amazon-ssm-agent >> /tmp/user-data.log 2>&1
               
-              sudo systemctl start httpd
-              sudo systemctl enable httpd
-              sudo systemctl start amazon-ssm-agent
-              sudo systemctl enable amazon-ssm-agent
+              echo "Starting services" >> /tmp/user-data.log
+              systemctl start httpd
+              systemctl enable httpd
+              systemctl start amazon-ssm-agent
+              systemctl enable amazon-ssm-agent
               
+              echo "Creating index.html" >> /tmp/user-data.log
               INSTANCE_ID=$(ec2-metadata --instance-id | cut -d " " -f 2)
               AZ=$(ec2-metadata --availability-zone | cut -d " " -f 2)
               
-              sudo bash -c 'cat > /var/www/html/index.html' << 'HTML'
+              cat > /var/www/html/index.html << 'HTML'
 <!DOCTYPE html>
 <html>
 <head>
@@ -105,11 +104,11 @@ resource "aws_instance" "web_1" {
 </html>
 HTML
               
-              sudo sed -i "s/INSTANCE_ID/$INSTANCE_ID/g" /var/www/html/index.html
-              sudo sed -i "s/AZ/$AZ/g" /var/www/html/index.html
+              sed -i "s/INSTANCE_ID/$INSTANCE_ID/g" /var/www/html/index.html
+              sed -i "s/AZ/$AZ/g" /var/www/html/index.html
               
-              echo "User data complete!"
-              sudo yum update -y &
+              echo "User data complete!" >> /tmp/user-data.log
+              yum update -y &
               EOF
 
   tags = merge(
@@ -140,27 +139,28 @@ resource "aws_instance" "web_2" {
 
   user_data = <<-EOF
               #!/bin/bash
-              set -x
-              exec > >(tee /var/log/user-data.log) 2>&1
+              echo "Starting user_data" > /tmp/user-data.log
+              echo "Waiting for NAT..." >> /tmp/user-data.log
               
-              echo "Waiting for NAT Gateway..."
-              until sudo ping -c 1 8.8.8.8 &> /dev/null; do
-                echo "Still waiting..."
+              until ping -c 1 8.8.8.8 &> /dev/null; do
+                echo "Waiting..." >> /tmp/user-data.log
                 sleep 5
               done
-              echo "Internet ready!"
               
-              sudo yum install -y httpd amazon-ssm-agent
+              echo "Installing httpd" >> /tmp/user-data.log
+              yum install -y httpd amazon-ssm-agent >> /tmp/user-data.log 2>&1
               
-              sudo systemctl start httpd
-              sudo systemctl enable httpd
-              sudo systemctl start amazon-ssm-agent
-              sudo systemctl enable amazon-ssm-agent
+              echo "Starting services" >> /tmp/user-data.log
+              systemctl start httpd
+              systemctl enable httpd
+              systemctl start amazon-ssm-agent
+              systemctl enable amazon-ssm-agent
               
+              echo "Creating index.html" >> /tmp/user-data.log
               INSTANCE_ID=$(ec2-metadata --instance-id | cut -d " " -f 2)
               AZ=$(ec2-metadata --availability-zone | cut -d " " -f 2)
               
-              sudo bash -c 'cat > /var/www/html/index.html' << 'HTML'
+              cat > /var/www/html/index.html << 'HTML'
 <!DOCTYPE html>
 <html>
 <head>
@@ -187,11 +187,11 @@ resource "aws_instance" "web_2" {
 </html>
 HTML
               
-              sudo sed -i "s/INSTANCE_ID/$INSTANCE_ID/g" /var/www/html/index.html
-              sudo sed -i "s/AZ/$AZ/g" /var/www/html/index.html
+              sed -i "s/INSTANCE_ID/$INSTANCE_ID/g" /var/www/html/index.html
+              sed -i "s/AZ/$AZ/g" /var/www/html/index.html
               
-              echo "User data complete!"
-              sudo yum update -y &
+              echo "User data complete!" >> /tmp/user-data.log
+              yum update -y &
               EOF
 
   tags = merge(
