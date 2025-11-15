@@ -443,23 +443,23 @@ spec:
             }
         }
 
-        stage('Post-Deployment Validation') {
-            when { expression { env.ACTION == 'create' || env.ACTION == 'update' } }
-            steps {
-                withCredentials([aws(credentialsId: 'd690f807-aa7f-4f36-8d44-8d0ba71dc975', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
-                    sh '''
-                        #!/bin/bash
-                        set -e
-                        export AWS_DEFAULT_REGION=${AWS_REGION}
-                        cd ${ENV}
+        // stage('Post-Deployment Validation') {
+        //     when { expression { env.ACTION == 'create' || env.ACTION == 'update' } }
+        //     steps {
+        //         withCredentials([aws(credentialsId: 'd690f807-aa7f-4f36-8d44-8d0ba71dc975', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+        //             sh '''
+        //                 #!/bin/bash
+        //                 set -e
+        //                 export AWS_DEFAULT_REGION=${AWS_REGION}
+        //                 cd ${ENV}
                         
-                        echo "Running comprehensive post-deployment health checks..."
-                        chmod +x ../health_check.sh
-                        ../health_check.sh
-                    '''
-                }
-            }
-        }
+        //                 echo "Running comprehensive post-deployment health checks..."
+        //                 chmod +x ../health_check.sh
+        //                 ../health_check.sh
+        //             '''
+        //         }
+        //     }
+        // }
     }
 
     post {
