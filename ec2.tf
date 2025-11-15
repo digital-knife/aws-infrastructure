@@ -53,7 +53,7 @@ resource "aws_instance" "web_1" {
   user_data = <<-EOF
               #!/bin/bash
               # Install Apache and SSM FIRST (fast - no updates yet)
-              yum install -y httpd amazon-ssm-agent
+              sudo yum install -y httpd amazon-ssm-agent
               
               # Start Apache IMMEDIATELY so health checks pass
               systemctl start httpd
