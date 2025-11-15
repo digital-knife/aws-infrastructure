@@ -9,20 +9,26 @@ resource "aws_instance" "bastion" {
   subnet_id              = aws_subnet.public_1.id
   vpc_security_group_ids = [aws_security_group.bastion.id]
 
-  # Enable detailed monitoring
   monitoring = true
 
-  # User data for bastion setup
   user_data = <<-EOF
               #!/bin/bash
-              yum install -y amazon-ssm-agent htop vim wget curl
-              systemctl enable amazon-ssm-agent
-              systemctl start amazon-ssm-agent
+              set -x
+              exec > >(tee /var/log/user-data.log) 2>&1
               
-              echo "Bastion host ready - Environment: ${var.environment}" > /etc/motd
+              echo "Waiting for internet connectivity..."
+              until sudo ping -c 1 8.8.8.8 &> /dev/null; do
+                echo "Waiting for internet..."
+                sleep 5
+              done
               
-              # Run system updates in background (non-blocking)
-              yum update -y &
+              sudo yum install -y amazon-ssm-agent htop vim wget curl
+              sudo systemctl enable amazon-ssm-agent
+              sudo systemctl start amazon-ssm-agent
+              
+              echo "Bastion ready - ${var.environment}" | sudo tee /etc/motd
+              
+              sudo yum update -y &
               EOF
 
   tags = merge(
@@ -33,6 +39,8 @@ resource "aws_instance" "bastion" {
       Tier = "public"
     }
   )
+
+  depends_on = [aws_nat_gateway.main]
 }
 
 # ============================================================================
@@ -46,60 +54,62 @@ resource "aws_instance" "web_1" {
   subnet_id              = aws_subnet.private_1.id
   vpc_security_group_ids = [aws_security_group.web.id]
 
-  # Enable detailed monitoring
   monitoring = true
 
-  # User data for web server setup
   user_data = <<-EOF
               #!/bin/bash
-              # Install Apache and SSM FIRST (fast - no updates yet)
+              set -x
+              exec > >(tee /var/log/user-data.log) 2>&1
+              
+              echo "Waiting for NAT Gateway..."
+              until sudo ping -c 1 8.8.8.8 &> /dev/null; do
+                echo "Still waiting..."
+                sleep 5
+              done
+              echo "Internet ready!"
+              
               sudo yum install -y httpd amazon-ssm-agent
               
-              # Start Apache IMMEDIATELY so health checks pass
-              systemctl start httpd
-              systemctl enable httpd
+              sudo systemctl start httpd
+              sudo systemctl enable httpd
+              sudo systemctl start amazon-ssm-agent
+              sudo systemctl enable amazon-ssm-agent
               
-              # Start and enable SSM agent
-              systemctl enable amazon-ssm-agent
-              systemctl start amazon-ssm-agent
-              
-              # Create index page with instance info
               INSTANCE_ID=$(ec2-metadata --instance-id | cut -d " " -f 2)
               AZ=$(ec2-metadata --availability-zone | cut -d " " -f 2)
               
-              cat > /var/www/html/index.html << 'HTML'
-              <!DOCTYPE html>
-              <html>
-              <head>
-                  <title>Web Server 1</title>
-                  <style>
-                      body { font-family: Arial; margin: 40px; background: #f0f0f0; }
-                      .container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-                      h1 { color: #232f3e; }
-                      .info { background: #e8f4f8; padding: 10px; border-left: 4px solid #0073bb; margin: 10px 0; }
-                  </style>
-              </head>
-              <body>
-                  <div class="container">
-                      <h1>✅ Web Server 1 - Healthy</h1>
-                      <div class="info">
-                          <strong>Instance ID:</strong> INSTANCE_ID<br>
-                          <strong>Availability Zone:</strong> AZ<br>
-                          <strong>Environment:</strong> ${var.environment}<br>
-                          <strong>Server:</strong> Web-1
-                      </div>
-                      <p>Traffic is being load balanced by ALB across multiple availability zones.</p>
-                  </div>
-              </body>
-              </html>
+              sudo bash -c 'cat > /var/www/html/index.html' << 'HTML'
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Web Server 1</title>
+    <style>
+        body { font-family: Arial; margin: 40px; background: #f0f0f0; }
+        .container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #232f3e; }
+        .info { background: #e8f4f8; padding: 10px; border-left: 4px solid #0073bb; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>✅ Web Server 1 - Healthy</h1>
+        <div class="info">
+            <strong>Instance ID:</strong> INSTANCE_ID<br>
+            <strong>Availability Zone:</strong> AZ<br>
+            <strong>Environment:</strong> ${var.environment}<br>
+            <strong>Server:</strong> Web-1
+        </div>
+        <p>Traffic is being load balanced by ALB across multiple availability zones.</p>
+    </div>
+</body>
+</html>
 HTML
               
-              # Replace placeholders
-              sed -i "s/INSTANCE_ID/$INSTANCE_ID/g" /var/www/html/index.html
-              sed -i "s/AZ/$AZ/g" /var/www/html/index.html
+              sudo sed -i "s/INSTANCE_ID/$INSTANCE_ID/g" /var/www/html/index.html
+              sudo sed -i "s/AZ/$AZ/g" /var/www/html/index.html
               
-              # Run system updates in background (non-blocking)
-              yum update -y &
+              echo "User data complete!"
+              sudo yum update -y &
               EOF
 
   tags = merge(
@@ -111,6 +121,8 @@ HTML
       AZ   = data.aws_availability_zones.available.names[0]
     }
   )
+
+  depends_on = [aws_nat_gateway.main]
 }
 
 # ============================================================================
@@ -124,60 +136,62 @@ resource "aws_instance" "web_2" {
   subnet_id              = aws_subnet.private_2.id
   vpc_security_group_ids = [aws_security_group.web.id]
 
-  # Enable detailed monitoring
   monitoring = true
 
-  # User data for web server setup
   user_data = <<-EOF
               #!/bin/bash
-              # Install Apache and SSM FIRST (fast - no updates yet)
-              yum install -y httpd amazon-ssm-agent
+              set -x
+              exec > >(tee /var/log/user-data.log) 2>&1
               
-              # Start Apache IMMEDIATELY so health checks pass
-              systemctl start httpd
-              systemctl enable httpd
+              echo "Waiting for NAT Gateway..."
+              until sudo ping -c 1 8.8.8.8 &> /dev/null; do
+                echo "Still waiting..."
+                sleep 5
+              done
+              echo "Internet ready!"
               
-              # Start and enable SSM agent
-              systemctl enable amazon-ssm-agent
-              systemctl start amazon-ssm-agent
+              sudo yum install -y httpd amazon-ssm-agent
               
-              # Create index page with instance info
+              sudo systemctl start httpd
+              sudo systemctl enable httpd
+              sudo systemctl start amazon-ssm-agent
+              sudo systemctl enable amazon-ssm-agent
+              
               INSTANCE_ID=$(ec2-metadata --instance-id | cut -d " " -f 2)
               AZ=$(ec2-metadata --availability-zone | cut -d " " -f 2)
               
-              cat > /var/www/html/index.html << 'HTML'
-              <!DOCTYPE html>
-              <html>
-              <head>
-                  <title>Web Server 2</title>
-                  <style>
-                      body { font-family: Arial; margin: 40px; background: #f0f0f0; }
-                      .container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-                      h1 { color: #232f3e; }
-                      .info { background: #e8f4f8; padding: 10px; border-left: 4px solid #0073bb; margin: 10px 0; }
-                  </style>
-              </head>
-              <body>
-                  <div class="container">
-                      <h1>✅ Web Server 2 - Healthy</h1>
-                      <div class="info">
-                          <strong>Instance ID:</strong> INSTANCE_ID<br>
-                          <strong>Availability Zone:</strong> AZ<br>
-                          <strong>Environment:</strong> ${var.environment}<br>
-                          <strong>Server:</strong> Web-2
-                      </div>
-                      <p>Traffic is being load balanced by ALB across multiple availability zones.</p>
-                  </div>
-              </body>
-              </html>
+              sudo bash -c 'cat > /var/www/html/index.html' << 'HTML'
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Web Server 2</title>
+    <style>
+        body { font-family: Arial; margin: 40px; background: #f0f0f0; }
+        .container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #232f3e; }
+        .info { background: #e8f4f8; padding: 10px; border-left: 4px solid #0073bb; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>✅ Web Server 2 - Healthy</h1>
+        <div class="info">
+            <strong>Instance ID:</strong> INSTANCE_ID<br>
+            <strong>Availability Zone:</strong> AZ<br>
+            <strong>Environment:</strong> ${var.environment}<br>
+            <strong>Server:</strong> Web-2
+        </div>
+        <p>Traffic is being load balanced by ALB across multiple availability zones.</p>
+    </div>
+</body>
+</html>
 HTML
               
-              # Replace placeholders
-              sed -i "s/INSTANCE_ID/$INSTANCE_ID/g" /var/www/html/index.html
-              sed -i "s/AZ/$AZ/g" /var/www/html/index.html
+              sudo sed -i "s/INSTANCE_ID/$INSTANCE_ID/g" /var/www/html/index.html
+              sudo sed -i "s/AZ/$AZ/g" /var/www/html/index.html
               
-              # Run system updates in background (non-blocking)
-              yum update -y &
+              echo "User data complete!"
+              sudo yum update -y &
               EOF
 
   tags = merge(
@@ -189,6 +203,8 @@ HTML
       AZ   = data.aws_availability_zones.available.names[1]
     }
   )
+
+  depends_on = [aws_nat_gateway.main]
 }
 
 # ============================================================================
