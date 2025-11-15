@@ -118,23 +118,27 @@ run_health_checks() {
         HEALTHY_COUNT=0
         
         while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
-            TARGET_HEALTH=$(aws elbv2 describe-target-health --target-group-arn "$TG_ARN" 2>/dev/null || echo "")
+        TARGET_HEALTH=$(aws elbv2 describe-target-health --target-group-arn "$TG_ARN" 2>/dev/null || echo "")
+        
+        if [ -n "$TARGET_HEALTH" ]; then
+            TOTAL_COUNT=$(echo "$TARGET_HEALTH" | grep -o '"Target"' | wc -l)
+            HEALTHY_COUNT=$(echo "$TARGET_HEALTH" | grep -o '"State": "healthy"' | wc -l)
             
-            if [ -n "$TARGET_HEALTH" ]; then
-                HEALTHY_COUNT=$(echo "$TARGET_HEALTH" | jq -r '[.TargetHealthDescriptions[] | select(.TargetHealth.State == "healthy")] | length' 2>/dev/null || echo "0")
-                TOTAL_COUNT=$(echo "$TARGET_HEALTH" | jq -r '.TargetHealthDescriptions | length' 2>/dev/null || echo "0")
-                
-                if [ "$HEALTHY_COUNT" -ge 2 ]; then
-                    echo "   ✓ $HEALTHY_COUNT/$TOTAL_COUNT targets are healthy"
-                    break
-                else
-                    STATES=$(echo "$TARGET_HEALTH" | jq -r '.TargetHealthDescriptions[].TargetHealth.State' 2>/dev/null | sort | uniq | tr '\n' ',' | sed 's/,$//')
-                    echo "   ⏳ Attempt $((ATTEMPT + 1))/$MAX_ATTEMPTS: $HEALTHY_COUNT/$TOTAL_COUNT healthy (states: $STATES)"
-                    sleep 5
-                fi
+            if [ "$HEALTHY_COUNT" -ge 2 ] && [ "$TOTAL_COUNT" -ge 2 ]; then
+                echo "   ✓ $HEALTHY_COUNT/$TOTAL_COUNT targets are healthy"
+                break
+            else
+                # Extract states without jq - just show if initial/healthy/unhealthy
+                STATES=$(echo "$TARGET_HEALTH" | grep -o '"State": "[^"]*"' | cut -d'"' -f4 | sort | uniq | tr '\n' ',' | sed 's/,$//')
+                echo "   ⏳ Attempt $((ATTEMPT + 1))/$MAX_ATTEMPTS: $HEALTHY_COUNT/$TOTAL_COUNT healthy (states: $STATES)"
+                sleep 5
             fi
-            
-            ((ATTEMPT++))
+        else
+            echo "   ⏳ Attempt $((ATTEMPT + 1))/$MAX_ATTEMPTS: Waiting for API response..."
+            sleep 5
+        fi
+        
+        ((ATTEMPT++))
         done
         
         if [ "$HEALTHY_COUNT" -lt 2 ]; then
