@@ -36,15 +36,21 @@ spec:
         TERRAFORM_VERSION = '1.9.5'
         TERRAGRUNT_VERSION = '0.93.4'
         AWS_REGION = "${params.aws_region}"
-        VPC_NAME = "${params.vpc_name}"
-        VPC_TAG = "${params.vpc_tag}"
-        PUBLIC_SUBNET_CIDR = "${params.public_subnet_cidr}"
-        PRIVATE_SUBNET_CIDR = "${params.private_subnet_cidr}"
-        INSTANCE_TYPE = "${params.instance_type}"
-        S3_BUCKET_NAME = "${params.s3_bucket_name}"
         ENV = "${params.environment ?: 'dev'}"
         ACTION = "${params.action}"
         DESTROY_CONFIRM = "${params.destroy}"
+        
+        // Convert Jenkins params to TF_VAR_ environment variables
+        // These automatically get picked up by Terraform/Terragrunt
+        TF_VAR_aws_region = "${params.aws_region}"
+        TF_VAR_vpc_cidr = ""  // Set dynamically in Set ENV Default stage
+        TF_VAR_vpc_name = "${params.vpc_name}"
+        TF_VAR_project_name = "${params.vpc_name != '' && params.vpc_name != 'null' ? params.vpc_name : 'aws-infrastructure'}"
+        TF_VAR_vpc_tag = "${params.vpc_tag}"
+        TF_VAR_public_subnet_cidr = "${params.public_subnet_cidr}"
+        TF_VAR_private_subnet_cidr = "${params.private_subnet_cidr}"
+        TF_VAR_instance_type = "${params.instance_type}"
+        TF_VAR_s3_bucket_name = "${params.s3_bucket_name}"
     }
 
     parameters {
@@ -139,9 +145,11 @@ spec:
                     if (env.ENV == 'dev') {
                         env.VPC_CIDR = '10.0.0.0/16'
                         env.VPC_CIDR_PREFIX = '10.0'
+                        env.TF_VAR_vpc_cidr = '10.0.0.0/16'
                     } else if (env.ENV == 'prod') {
                         env.VPC_CIDR = '10.1.0.0/16'
                         env.VPC_CIDR_PREFIX = '10.1'
+                        env.TF_VAR_vpc_cidr = '10.1.0.0/16'
                     }
                     
                     echo "Environment: ${env.ENV}"
@@ -155,32 +163,6 @@ spec:
                 checkout scm
             }
         }
-
-        // stage('Debug Directory Structure') {
-        //     steps {
-        //         // sh '''
-        //         //     #!/bin/bash
-        //         //     set -e
-        //         //     echo "Checking contents of terragrunt.hcl for environment: ${ENV}"
-        //         //     if [ -z "${ENV}" ]; then
-        //         //         echo "Warning: ENV is empty, defaulting to dev"
-        //         //         ENV="dev"
-        //         //     fi
-        //         //     if [ -f "${ENV}/terragrunt.hcl" ]; then
-        //         //         echo "Contents of ${ENV}/terragrunt.hcl:"
-        //         //         cat ${ENV}/terragrunt.hcl
-        //         //     else
-        //         //         echo "Warning: ${ENV}/terragrunt.hcl not found"
-        //         //     fi
-        //         //     if [ -f "root.hcl" ]; then
-        //         //         echo "Contents of root.hcl:"
-        //         //         cat root.hcl
-        //         //     else
-        //         //         echo "Warning: root.hcl not found"
-        //         //     fi
-        //         // '''
-        //     }
-        // }
 
         stage('Setup Tools') {
             steps {
@@ -302,54 +284,17 @@ spec:
                         set -e
                         export AWS_DEFAULT_REGION=${AWS_REGION}
                         cd ${ENV}
-                        echo "Running terragrunt plan in $(pwd)"
-                        
-                        CMD="terragrunt plan"
-                        
-                        if [ -n "${AWS_REGION}" ] && [ "${AWS_REGION}" != "null" ]; then
-                            CMD="${CMD} -var=\"aws_region=${AWS_REGION}\""
-                            echo "Overriding aws_region with: ${AWS_REGION}"
-                        fi
-                        
-                        if [ -n "${VPC_CIDR}" ] && [ "${VPC_CIDR}" != "null" ]; then
-                            CMD="${CMD} -var=\"vpc_cidr=${VPC_CIDR}\""
-                            echo "Overriding vpc_cidr with: ${VPC_CIDR}"
-                        fi
-                        
-                        if [ -n "${VPC_NAME}" ] && [ "${VPC_NAME}" != "null" ]; then
-                            CMD="${CMD} -var=\"vpc_name=${VPC_NAME}\""
-                            echo "Overriding vpc_name with: ${VPC_NAME}"
-                        fi
-                        
-                        if [ -n "${VPC_TAG}" ] && [ "${VPC_TAG}" != "null" ]; then
-                            CMD="${CMD} -var=\"vpc_tag=${VPC_TAG}\""
-                            echo "Overriding vpc_tag with: ${VPC_TAG}"
-                        fi
-                        
-                        if [ -n "${PUBLIC_SUBNET_CIDR}" ] && [ "${PUBLIC_SUBNET_CIDR}" != "null" ]; then
-                            CMD="${CMD} -var=\"public_subnet_cidr=${PUBLIC_SUBNET_CIDR}\""
-                            echo "Overriding public_subnet_cidr with: ${PUBLIC_SUBNET_CIDR}"
-                        fi
-                        
-                        if [ -n "${PRIVATE_SUBNET_CIDR}" ] && [ "${PRIVATE_SUBNET_CIDR}" != "null" ]; then
-                            CMD="${CMD} -var=\"private_subnet_cidr=${PRIVATE_SUBNET_CIDR}\""
-                            echo "Overriding private_subnet_cidr with: ${PRIVATE_SUBNET_CIDR}"
-                        fi
-                        
-                        if [ -n "${INSTANCE_TYPE}" ] && [ "${INSTANCE_TYPE}" != "null" ]; then
-                            CMD="${CMD} -var=\"instance_type=${INSTANCE_TYPE}\""
-                            echo "Overriding instance_type with: ${INSTANCE_TYPE}"
-                        fi
-                        
-                        if [ -n "${S3_BUCKET_NAME}" ] && [ "${S3_BUCKET_NAME}" != "null" ]; then
-                            CMD="${CMD} -var=\"s3_bucket_name=${S3_BUCKET_NAME}\""
-                            echo "Overriding s3_bucket_name with: ${S3_BUCKET_NAME}"
-                        fi
                         
                         echo "=========================================="
-                        echo "Executing: ${CMD}"
+                        echo "Running terragrunt plan with variables:"
+                        echo "VPC Name: ${TF_VAR_vpc_name}"
+                        echo "Project Name: ${TF_VAR_project_name}"
+                        echo "VPC Tag: ${TF_VAR_vpc_tag}"
+                        echo "VPC CIDR: ${TF_VAR_vpc_cidr}"
+                        echo "S3 Bucket: ${TF_VAR_s3_bucket_name}"
                         echo "=========================================="
-                        eval "${CMD}"
+                        
+                        terragrunt plan
                     '''
                     input "Approve plan? Review the output above and proceed to apply."
                 }
@@ -365,47 +310,18 @@ spec:
                         set -e
                         export AWS_DEFAULT_REGION=${AWS_REGION}
                         cd ${ENV}
+                        
+                        echo "Refreshing Terraform state..."
                         terragrunt refresh
-                        echo "Running terragrunt apply in $(pwd)"
-                        
-                        CMD="terragrunt apply -auto-approve"
-                        
-                        if [ -n "${AWS_REGION}" ] && [ "${AWS_REGION}" != "null" ]; then
-                            CMD="${CMD} -var=\"aws_region=${AWS_REGION}\""
-                        fi
-                        
-                        if [ -n "${VPC_CIDR}" ] && [ "${VPC_CIDR}" != "null" ]; then
-                            CMD="${CMD} -var=\"vpc_cidr=${VPC_CIDR}\""
-                        fi
-                        
-                        if [ -n "${VPC_NAME}" ] && [ "${VPC_NAME}" != "null" ]; then
-                            CMD="${CMD} -var=\"vpc_name=${VPC_NAME}\""
-                        fi
-                        
-                        if [ -n "${VPC_TAG}" ] && [ "${VPC_TAG}" != "null" ]; then
-                            CMD="${CMD} -var=\"vpc_tag=${VPC_TAG}\""
-                        fi
-                        
-                        if [ -n "${PUBLIC_SUBNET_CIDR}" ] && [ "${PUBLIC_SUBNET_CIDR}" != "null" ]; then
-                            CMD="${CMD} -var=\"public_subnet_cidr=${PUBLIC_SUBNET_CIDR}\""
-                        fi
-                        
-                        if [ -n "${PRIVATE_SUBNET_CIDR}" ] && [ "${PRIVATE_SUBNET_CIDR}" != "null" ]; then
-                            CMD="${CMD} -var=\"private_subnet_cidr=${PRIVATE_SUBNET_CIDR}\""
-                        fi
-                        
-                        if [ -n "${INSTANCE_TYPE}" ] && [ "${INSTANCE_TYPE}" != "null" ]; then
-                            CMD="${CMD} -var=\"instance_type=${INSTANCE_TYPE}\""
-                        fi
-                        
-                        if [ -n "${S3_BUCKET_NAME}" ] && [ "${S3_BUCKET_NAME}" != "null" ]; then
-                            CMD="${CMD} -var=\"s3_bucket_name=${S3_BUCKET_NAME}\""
-                        fi
                         
                         echo "=========================================="
-                        echo "Executing: ${CMD}"
+                        echo "Applying Terraform configuration..."
+                        echo "VPC Name: ${TF_VAR_vpc_name}"
+                        echo "Project Name: ${TF_VAR_project_name}"
+                        echo "VPC Tag: ${TF_VAR_vpc_tag}"
                         echo "=========================================="
-                        eval "${CMD}"
+                        
+                        terragrunt apply -auto-approve
                     '''
                 }
             }

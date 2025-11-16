@@ -23,6 +23,5 @@ remote_state {
 # Shared inputs across all environments
 inputs = {
   aws_region   = "us-east-1"
-  project_name = "demo-project"
   owner        = "DevOps-Team"
 }
