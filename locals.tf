@@ -2,8 +2,8 @@
 data "aws_caller_identity" "current" {}
 
 locals {
-  # Base naming prefix
-  name_prefix = "${var.project_name}-${var.environment}"
+  project_base = var.vpc_name != "" ? var.vpc_name : var.project_name
+  name_prefix  = "${local.project_base}-${var.environment}"
 
   # Common tags applied to all resources - with optional vpc_tag
   common_tags = merge(
