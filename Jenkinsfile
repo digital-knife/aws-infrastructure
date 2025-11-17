@@ -58,8 +58,8 @@ spec:
             name: 'environment', 
             choices: ['dev', 'prod'], 
             description: '''Environment Selection (CIDR auto-assigned):
-            • dev  → VPC CIDR: 10.0.0.0/16 (subnets must use 10.0.x.x)
-            • prod → VPC CIDR: 10.1.0.0/16 (subnets must use 10.1.x.x)'''
+            • dev VPC CIDR: 10.0.0.0/16 (must use 10.0.x.x)
+            • prod VPC CIDR: 10.1.0.0/16 (must use 10.1.x.x)'''
         )
         choice(
             name: 'aws_region', 
@@ -70,39 +70,37 @@ spec:
             name: 'vpc_name', 
             defaultValue: '', 
             description: '''VPC Name (optional):
-            • Leave empty to use default naming (dev-vpc or prod-vpc)
-            • Provide custom name for easier identification in AWS Console'''
+            • Leave empty to use default(dev-vpc or prod-vpc)'''
         )
         string(
             name: 'vpc_tag', 
             defaultValue: '', 
             description: '''Additional VPC Tag (optional):
-            • Leave empty for standard tagging only
-            • Add custom tag for team/project identification (e.g., "team-alpha", "project-x")'''
+            • Leave empty for standard tagging only'''
         )
         string(
             name: 'public_subnet_cidr', 
             defaultValue: '', 
             description: '''Public Subnet CIDR (optional):
-            • Leave empty for auto-assignment (recommended)
-            • dev:  Must be within 10.0.0.0/16 (e.g., 10.0.1.0/24)
-            • prod: Must be within 10.1.0.0/16 (e.g., 10.1.1.0/24)
+            • Leave empty for auto-assignment
+            • dev:  Must be within 10.0.0.0/16
+            • prod: Must be within 10.1.0.0/16
             • Job will FAIL if subnet is outside VPC range'''
         )
         string(
             name: 'private_subnet_cidr', 
             defaultValue: '', 
             description: '''Private Subnet CIDR (optional):
-            • Leave empty for auto-assignment (recommended)
-            • dev:  Must be within 10.0.0.0/16 (e.g., 10.0.2.0/24)
-            • prod: Must be within 10.1.0.0/16 (e.g., 10.1.2.0/24)
+            • Leave empty for auto-assignment
+            • dev:  Must be within 10.0.0.0/16 
+            • prod: Must be within 10.1.0.0/16 
             • Job will FAIL if subnet is outside VPC range'''
         )
         choice(
             name: 'instance_type', 
             choices: ['', 't3.micro', 't3.small'], 
             description: '''EC2 Instance Type:
-            • Leave empty to use environment default (dev: t3.micro, prod: t3.small)
+            • Leave empty to use default (dev: t3.micro, prod: t3.small)
             • t3.micro: 2 vCPU, 1GB RAM
             • t3.small: 2 vCPU, 2GB RAM'''
         )
@@ -110,7 +108,7 @@ spec:
             name: 's3_bucket_name', 
             defaultValue: '', 
             description: '''S3 Bucket Name (optional):
-            • Leave empty to use environment default (demo-bucket-dev or demo-bucket-prod)
+            • Leave empty to use default
             • Must be globally unique across ALL AWS accounts
             • Use lowercase, numbers, and hyphens only'''
         )
@@ -120,14 +118,14 @@ spec:
             description: '''Action to Perform:
             • Create:  Provision new infrastructure
             • Update:  Modify existing infrastructure
-            • Destroy: DELETE all resources (requires confirmation checkbox)'''
+            • Destroy: DELETE all resources (requires confirmation)'''
         )
         booleanParam(
             name: 'destroy', 
             defaultValue: false, 
-            description: '''DESTROY CONFIRMATION (required for destroy action):
-            • DESTROYING CANNOT BE UNDONE - all data will be PERMANENTLY deleted
-            • Backup any important data before proceeding'''
+            description: '''DESTROY CONFIRMATION (required for destroy):
+            • DESTROYING CANNOT BE UNDONE 
+            • all data will be PERMANENTLY deleted'''
         )
     }
 
