@@ -148,6 +148,20 @@ output "s3_bucket_arn" {
 }
 
 # ============================================================================
+# CLOUDWATCH OUTPUTS
+# ============================================================================
+
+output "cloudwatch_dashboard_url" {
+  description = "Cloudwatch Dashboard URL"
+  value       = "https://console.aws.amazon.com/cloudwatch/home?region=${var.aws_region}#dashboards:name=${aws_cloudwatch_dashboard.main.dashboard_name}"
+}
+
+output "sns_topic_arn" {
+  description = "SNS Topic for alerts"
+  value       = aws_sns_topic.alerts.arn
+}
+
+# ============================================================================
 # SECURITY GROUP OUTPUTS
 # ============================================================================
 

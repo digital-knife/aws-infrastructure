@@ -72,6 +72,63 @@ resource "aws_instance" "web_1" {
               systemctl enable httpd
               systemctl start amazon-ssm-agent
               systemctl enable amazon-ssm-agent
+              yum install -y amazon-cloudwatch-agent
+              cat > /opt/aws/amazon-cloudwatch-agent/etc/config.json << 'CWCONFIG'
+              {
+                "metrics": {
+                  "namespace": "CustomMetrics/${var.environment}",
+                  "metrics_collected": {
+                    "cpu": {
+                      "measurement": [{"name": "cpu_usage_idle", "rename": "CPU_IDLE", "unit": "Percent"}],
+                      "totalcpu": false
+                    },
+                    "disk": {
+                      "measurement": [{"name": "used_percent", "rename": "DISK_USED", "unit": "Percent"}],
+                      "resources": ["/"]
+                    },
+                    "mem": {
+                      "measurement": [{"name": "mem_used_percent", "rename": "MEMORY_USED", "unit": "Percent"}]
+                    }
+                  }
+                }
+              }
+              CWCONFIG
+              /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+              -a fetch-config -m ec2 -s \
+              -c file:/opt/aws/amazon-cloudwatch-agent/etc/config.json
+              cat > /usr/local/bin/custom-metrics.sh << 'METRICS'
+              #!/bin/bash
+              INSTANCE_ID=$(ec2-metadata --instance-id | cut -d " " -f 2)
+              REGION=$(ec2-metadata --availability-zone | sed 's/[a-z]$//')
+
+              # Check httpd service
+              HTTPD_STATUS=$(systemctl is-active httpd &>/dev/null && echo 1 || echo 0)
+
+              # Days since last yum update
+              LAST_UPDATE=$(rpm -qa --last | head -1 | awk '{print $3,$4,$5}')
+              DAYS_SINCE=$(( ($(date +%s) - $(date -d "$LAST_UPDATE" +%s)) / 86400 ))
+
+              # Ping test
+              PING_STATUS=$(ping -c 1 8.8.8.8 &>/dev/null && echo 1 || echo 0)
+
+              # Push to CloudWatch
+              aws cloudwatch put-metric-data --region $REGION \
+                --namespace "CustomMetrics/${var.environment}" \
+                --metric-name httpd_status --value $HTTPD_STATUS --dimensions InstanceId=$INSTANCE_ID
+                
+              aws cloudwatch put-metric-data --region $REGION \
+                --namespace "CustomMetrics/${var.environment}" \
+                --metric-name days_since_yum_update --value $DAYS_SINCE --dimensions InstanceId=$INSTANCE_ID
+                
+              aws cloudwatch put-metric-data --region $REGION \
+                --namespace "CustomMetrics/${var.environment}" \
+                --metric-name internet_connectivity --value $PING_STATUS --dimensions InstanceId=$INSTANCE_ID
+              METRICS
+
+              chmod +x /usr/local/bin/custom-metrics.sh
+
+              # Run every 5 minutes via cron
+              echo "*/5 * * * * /usr/local/bin/custom-metrics.sh" | crontab -
               
               echo "Creating index.html" >> /tmp/user-data.log
               INSTANCE_ID=$(ec2-metadata --instance-id | cut -d " " -f 2)
@@ -159,6 +216,63 @@ resource "aws_instance" "web_2" {
               echo "Creating index.html" >> /tmp/user-data.log
               INSTANCE_ID=$(ec2-metadata --instance-id | cut -d " " -f 2)
               AZ=$(ec2-metadata --availability-zone | cut -d " " -f 2)
+              yum install -y amazon-cloudwatch-agent
+              cat > /opt/aws/amazon-cloudwatch-agent/etc/config.json << 'CWCONFIG'
+              {
+                "metrics": {
+                  "namespace": "CustomMetrics/${var.environment}",
+                  "metrics_collected": {
+                    "cpu": {
+                      "measurement": [{"name": "cpu_usage_idle", "rename": "CPU_IDLE", "unit": "Percent"}],
+                      "totalcpu": false
+                    },
+                    "disk": {
+                      "measurement": [{"name": "used_percent", "rename": "DISK_USED", "unit": "Percent"}],
+                      "resources": ["/"]
+                    },
+                    "mem": {
+                      "measurement": [{"name": "mem_used_percent", "rename": "MEMORY_USED", "unit": "Percent"}]
+                    }
+                  }
+                }
+              }
+              CWCONFIG
+              /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+              -a fetch-config -m ec2 -s \
+              -c file:/opt/aws/amazon-cloudwatch-agent/etc/config.json
+              cat > /usr/local/bin/custom-metrics.sh << 'METRICS'
+              #!/bin/bash
+              INSTANCE_ID=$(ec2-metadata --instance-id | cut -d " " -f 2)
+              REGION=$(ec2-metadata --availability-zone | sed 's/[a-z]$//')
+
+              # Check httpd service
+              HTTPD_STATUS=$(systemctl is-active httpd &>/dev/null && echo 1 || echo 0)
+
+              # Days since last yum update
+              LAST_UPDATE=$(rpm -qa --last | head -1 | awk '{print $3,$4,$5}')
+              DAYS_SINCE=$(( ($(date +%s) - $(date -d "$LAST_UPDATE" +%s)) / 86400 ))
+
+              # Ping test
+              PING_STATUS=$(ping -c 1 8.8.8.8 &>/dev/null && echo 1 || echo 0)
+
+              # Push to CloudWatch
+              aws cloudwatch put-metric-data --region $REGION \
+                --namespace "CustomMetrics/${var.environment}" \
+                --metric-name httpd_status --value $HTTPD_STATUS --dimensions InstanceId=$INSTANCE_ID
+                
+              aws cloudwatch put-metric-data --region $REGION \
+                --namespace "CustomMetrics/${var.environment}" \
+                --metric-name days_since_yum_update --value $DAYS_SINCE --dimensions InstanceId=$INSTANCE_ID
+                
+              aws cloudwatch put-metric-data --region $REGION \
+                --namespace "CustomMetrics/${var.environment}" \
+                --metric-name internet_connectivity --value $PING_STATUS --dimensions InstanceId=$INSTANCE_ID
+              METRICS
+
+              chmod +x /usr/local/bin/custom-metrics.sh
+
+              # Run every 5 minutes via cron
+              echo "*/5 * * * * /usr/local/bin/custom-metrics.sh" | crontab -
               
               cat > /var/www/html/index.html << 'HTML'
 <!DOCTYPE html>
