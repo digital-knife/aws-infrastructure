@@ -20,7 +20,7 @@ resource "aws_s3_bucket_versioning" "application" {
   bucket = aws_s3_bucket.application.id
 
   versioning_configuration {
-    status = "Enabled" # Changed from Suspended for better data protection
+    status = "Enabled"
   }
 }
 
@@ -71,13 +71,13 @@ resource "aws_s3_bucket_lifecycle_configuration" "application" {
 # ============================================================
 
 resource "aws_s3_bucket" "alb_logs" {
-  bucket        = "centralized-alb-logs-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.name}"
+  bucket        = "centralized-alb-logs-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.id}"
   force_destroy = true
 
   tags = merge(
     local.common_tags,
     {
-      Name    = "centralized-alb-logs-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.name}"
+      Name    = "centralized-alb-logs-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.id}"
       Purpose = "ALB access logs storage"
     }
   )
@@ -128,7 +128,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "alb_logs" {
     }
 
     expiration {
-      days = 180 # Delete ALB logs after 6 months
+      days = 180
     }
   }
 }
@@ -144,7 +144,7 @@ resource "aws_s3_bucket_policy" "alb_logs" {
         Sid    = "AWSLogDeliveryWrite"
         Effect = "Allow"
         Principal = {
-          Service = "elasticloadbalancing.amazonaws.com"
+          AWS = "arn:aws:iam::${local.elb_service_accounts[data.aws_region.current.id]}:root"
         }
         Action   = "s3:PutObject"
         Resource = "${aws_s3_bucket.alb_logs.arn}/*"

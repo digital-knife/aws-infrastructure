@@ -45,4 +45,12 @@ locals {
 
   # S3 Bucket Name (must be globally unique)
   s3_bucket_name = var.s3_bucket_name != "" ? var.s3_bucket_name : "${local.name_prefix}-bucket-${data.aws_caller_identity.current.account_id}"
+
+  # ELB Service Account IDs by Region (for ALB logs bucket policy)
+  elb_service_accounts = {
+    us-east-1 = "127311923021"
+    us-east-2 = "033677994240"
+    us-west-1 = "027434742980"
+    us-west-2 = "797873946194"
+  }
 }
