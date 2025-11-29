@@ -70,7 +70,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "demo_bucket" {
 data "aws_elb_service_account" "main" {}
 
 resource "aws_s3_bucket" "alb_logs" {
-  bucket = "centralized-alb-logs-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.name}"
+  bucket        = "centralized-alb-logs-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.name}"
+  force_destroy = true
 
   tags = merge(
     local.common_tags,
