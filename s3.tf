@@ -65,15 +65,6 @@ resource "aws_s3_bucket_lifecycle_configuration" "demo_bucket" {
   }
 }
 
-# ============================================================================
-# ALB Access Logs Bucket (Regional)
-# ============================================================================
-# BEST PRACTICE: ALB logs bucket must be in the same region as the ALB
-# This ensures multi-region deployments work correctly
-
-data "aws_region" "current" {}
-data "aws_caller_identity" "current" {}
-
 # Data source to get the ELB service account for the current region
 # This is needed for the bucket policy to allow ALB to write logs
 data "aws_elb_service_account" "main" {}
