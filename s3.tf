@@ -1,40 +1,41 @@
-# S3 Bucket for demo purposes
-resource "aws_s3_bucket" "demo_bucket" {
-  bucket        = local.s3_bucket_name
+# ============================================================
+# S3 Buckets
+# ============================================================
+
+# Application S3 bucket for app data storage
+resource "aws_s3_bucket" "application" {
+  bucket        = var.s3_bucket_name
   force_destroy = true
 
   tags = merge(
     local.common_tags,
     {
-      Name = local.s3_bucket_name
+      Name    = var.s3_bucket_name
+      Purpose = "Application data storage"
     }
   )
 }
 
-# Enable versioning if specified
-resource "aws_s3_bucket_versioning" "demo_bucket" {
-  bucket = aws_s3_bucket.demo_bucket.id
+resource "aws_s3_bucket_versioning" "application" {
+  bucket = aws_s3_bucket.application.id
 
   versioning_configuration {
-    status = var.enable_versioning ? "Enabled" : "Suspended"
+    status = "Enabled" # Changed from Suspended for better data protection
   }
 }
 
-# Server-side encryption with AES256 (S3-managed keys)
-resource "aws_s3_bucket_server_side_encryption_configuration" "demo_bucket" {
-  count  = var.enable_encryption ? 1 : 0
-  bucket = aws_s3_bucket.demo_bucket.id
+resource "aws_s3_bucket_server_side_encryption_configuration" "application" {
+  bucket = aws_s3_bucket.application.id
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256" # S3-managed encryption, no KMS needed
+      sse_algorithm = "AES256"
     }
   }
 }
 
-# Block all public access
-resource "aws_s3_bucket_public_access_block" "demo_bucket" {
-  bucket = aws_s3_bucket.demo_bucket.id
+resource "aws_s3_bucket_public_access_block" "application" {
+  bucket = aws_s3_bucket.application.id
 
   block_public_acls       = true
   block_public_policy     = true
@@ -42,9 +43,8 @@ resource "aws_s3_bucket_public_access_block" "demo_bucket" {
   restrict_public_buckets = true
 }
 
-# Lifecycle rule to transition old objects to cheaper storage
-resource "aws_s3_bucket_lifecycle_configuration" "demo_bucket" {
-  bucket = aws_s3_bucket.demo_bucket.id
+resource "aws_s3_bucket_lifecycle_configuration" "application" {
+  bucket = aws_s3_bucket.application.id
 
   rule {
     id     = "transition-old-objects"
@@ -66,9 +66,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "demo_bucket" {
   }
 }
 
-# Data source to get the ELB service account for the current region
-# This is needed for the bucket policy to allow ALB to write logs
-data "aws_elb_service_account" "main" {}
+# ============================================================
+# ALB Access Logs Bucket (Regional)
+# ============================================================
 
 resource "aws_s3_bucket" "alb_logs" {
   bucket        = "centralized-alb-logs-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.name}"
@@ -77,14 +77,12 @@ resource "aws_s3_bucket" "alb_logs" {
   tags = merge(
     local.common_tags,
     {
-      Name        = "ALB Access Logs - ${data.aws_region.current.name}"
-      Purpose     = "ALB Access Logs"
-      Environment = var.environment
+      Name    = "centralized-alb-logs-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.name}"
+      Purpose = "ALB access logs storage"
     }
   )
 }
 
-# BEST PRACTICE: Enable versioning for compliance and audit trail
 resource "aws_s3_bucket_versioning" "alb_logs" {
   bucket = aws_s3_bucket.alb_logs.id
 
@@ -93,7 +91,6 @@ resource "aws_s3_bucket_versioning" "alb_logs" {
   }
 }
 
-# BEST PRACTICE: Encrypt ALB logs at rest
 resource "aws_s3_bucket_server_side_encryption_configuration" "alb_logs" {
   bucket = aws_s3_bucket.alb_logs.id
 
@@ -101,11 +98,9 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "alb_logs" {
     apply_server_side_encryption_by_default {
       sse_algorithm = "AES256"
     }
-    bucket_key_enabled = true
   }
 }
 
-# BEST PRACTICE: Block all public access to logs
 resource "aws_s3_bucket_public_access_block" "alb_logs" {
   bucket = aws_s3_bucket.alb_logs.id
 
@@ -115,40 +110,30 @@ resource "aws_s3_bucket_public_access_block" "alb_logs" {
   restrict_public_buckets = true
 }
 
-# BEST PRACTICE: Lifecycle policy to manage log retention and costs
 resource "aws_s3_bucket_lifecycle_configuration" "alb_logs" {
   bucket = aws_s3_bucket.alb_logs.id
 
   rule {
-    id     = "alb-log-retention"
+    id     = "delete-old-logs"
     status = "Enabled"
 
-    # Keep logs in Standard for 30 days (for quick access/analysis)
     transition {
       days          = 30
       storage_class = "STANDARD_IA"
     }
 
-    # Move to Glacier after 90 days (for compliance/long-term retention)
     transition {
       days          = 90
-      storage_class = "GLACIER_IR" # Instant Retrieval - better for occasional access
+      storage_class = "GLACIER"
     }
 
-    # Delete logs after 1 year (adjust based on compliance requirements)
     expiration {
-      days = 365
-    }
-
-    # Clean up incomplete multipart uploads to avoid costs
-    abort_incomplete_multipart_upload {
-      days_after_initiation = 7
+      days = 180 # Delete ALB logs after 6 months
     }
   }
 }
 
-# CRITICAL: S3 bucket policy to allow ALB to write access logs
-# Without this policy, ALB cannot write logs and will fail
+# ALB logs bucket policy - allows ALB service to write logs
 resource "aws_s3_bucket_policy" "alb_logs" {
   bucket = aws_s3_bucket.alb_logs.id
 
@@ -161,10 +146,8 @@ resource "aws_s3_bucket_policy" "alb_logs" {
         Principal = {
           Service = "elasticloadbalancing.amazonaws.com"
         }
-        Action = "s3:PutObject"
-        Resource = [
-          "${aws_s3_bucket.alb_logs.arn}/*"
-        ]
+        Action   = "s3:PutObject"
+        Resource = "${aws_s3_bucket.alb_logs.arn}/*"
       },
       {
         Sid    = "AWSLogDeliveryAclCheck"
@@ -174,21 +157,7 @@ resource "aws_s3_bucket_policy" "alb_logs" {
         }
         Action   = "s3:GetBucketAcl"
         Resource = aws_s3_bucket.alb_logs.arn
-      },
-      # Legacy support for older ALB service account (region-specific)
-      {
-        Sid    = "AWSELBServiceAccountWrite"
-        Effect = "Allow"
-        Principal = {
-          AWS = "arn:aws:iam::${data.aws_elb_service_account.main.id}:root"
-        }
-        Action = "s3:PutObject"
-        Resource = [
-          "${aws_s3_bucket.alb_logs.arn}/*"
-        ]
       }
     ]
   })
-
-  depends_on = [aws_s3_bucket_public_access_block.alb_logs]
 }

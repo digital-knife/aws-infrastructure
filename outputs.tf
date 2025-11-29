@@ -137,14 +137,29 @@ output "internet_gateway_id" {
 # S3 OUTPUTS
 # ============================================================================
 
-output "s3_bucket_name" {
-  description = "S3 bucket name"
-  value       = aws_s3_bucket.demo_bucket.id
+output "application_bucket_name" {
+  description = "Application S3 bucket name"
+  value       = aws_s3_bucket.application.id
 }
 
-output "s3_bucket_arn" {
-  description = "S3 bucket ARN"
-  value       = aws_s3_bucket.demo_bucket.arn
+output "application_bucket_arn" {
+  description = "Application S3 bucket ARN"
+  value       = aws_s3_bucket.application.arn
+}
+
+output "application_bucket_region" {
+  description = "Application S3 bucket region"
+  value       = aws_s3_bucket.application.region
+}
+
+output "alb_logs_bucket" {
+  description = "S3 bucket for ALB access logs"
+  value       = aws_s3_bucket.alb_logs.bucket
+}
+
+output "alb_logs_bucket_region" {
+  description = "Region of ALB logs bucket"
+  value       = data.aws_region.current.name
 }
 
 # ============================================================================
@@ -248,13 +263,4 @@ output "deployment_summary" {
       health_check_interval = "30s"
     }
   }
-}
-output "alb_logs_bucket" {
-  description = "S3 bucket for ALB access logs"
-  value       = aws_s3_bucket.alb_logs.bucket
-}
-
-output "alb_logs_bucket_region" {
-  description = "Region of ALB logs bucket"
-  value       = data.aws_region.current.name
 }

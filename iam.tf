@@ -15,7 +15,7 @@ resource "aws_iam_role" "ec2_role" {
   tags = local.common_tags
 }
 
-# Specific S3 policy - ONLY for our bucket (NO KMS)
+# Specific S3 policy - ONLY for our application bucket (NO KMS)
 resource "aws_iam_policy" "ec2_s3_access" {
   name        = "${local.iam_role_ec2_name}-s3-policy"
   description = "Allow EC2 to access ONLY specific S3 bucket"
@@ -30,7 +30,7 @@ resource "aws_iam_policy" "ec2_s3_access" {
           "s3:ListBucket",
           "s3:GetBucketLocation"
         ]
-        Resource = aws_s3_bucket.demo_bucket.arn
+        Resource = aws_s3_bucket.application.arn
       },
       {
         Sid    = "ReadWriteSpecificBucket"
@@ -40,7 +40,7 @@ resource "aws_iam_policy" "ec2_s3_access" {
           "s3:PutObject",
           "s3:DeleteObject"
         ]
-        Resource = "${aws_s3_bucket.demo_bucket.arn}/*"
+        Resource = "${aws_s3_bucket.application.arn}/*"
       }
     ]
   })
