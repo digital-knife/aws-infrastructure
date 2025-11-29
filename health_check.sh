@@ -15,7 +15,7 @@ run_health_checks() {
     echo "Environment: ${ENV_DIR}"
     echo "Region: ${AWS_REGION}"
     echo "Waiting 30 seconds for AWS resources to stabilize..."
-    sleep 60
+    sleep 30
     echo ""
 
     # Get outputs from Terragrunt
@@ -113,7 +113,7 @@ run_health_checks() {
     if [ -n "$TG_ARN" ]; then
         echo "   Waiting up to 2 minutes for targets to become healthy..."
         
-        MAX_ATTEMPTS=10
+        MAX_ATTEMPTS=5
         ATTEMPT=0
         HEALTHY_COUNT=0
         
