@@ -24,7 +24,7 @@ run_health_checks() {
     BASTION_ID=$(terragrunt output -raw bastion_instance_id 2>/dev/null || echo "")
     WEB_1_ID=$(terragrunt output -raw web_1_instance_id 2>/dev/null || echo "")
     WEB_2_ID=$(terragrunt output -raw web_2_instance_id 2>/dev/null || echo "")
-    S3_BUCKET=$(terragrunt output -raw s3_bucket_name 2>/dev/null || echo "")
+    S3_BUCKET=$(terragrunt output -raw application_bucket_name 2>/dev/null || echo "")
     TG_ARN=$(terragrunt output -raw target_group_arn 2>/dev/null || echo "")
 
     HEALTH_STATUS="PASSED"
