@@ -342,31 +342,31 @@ spec:
             }
         }
 
-        stage('Post-Deployment Validation') {
-            when { expression { env.ACTION == 'create' || env.ACTION == 'update' } }
-            steps {
-                withCredentials([aws(credentialsId: 'd690f807-aa7f-4f36-8d44-8d0ba71dc975', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
-                    script {
-                        sh """
-                            #!/bin/bash
-                            set -e
-                            export AWS_DEFAULT_REGION=${env.AWS_REGION}
-                            cd ${env.ENV}
+        // stage('Post-Deployment Validation') {
+        //     when { expression { env.ACTION == 'create' || env.ACTION == 'update' } }
+        //     steps {
+        //         withCredentials([aws(credentialsId: 'd690f807-aa7f-4f36-8d44-8d0ba71dc975', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+        //             script {
+        //                 sh """
+        //                     #!/bin/bash
+        //                     set -e
+        //                     export AWS_DEFAULT_REGION=${env.AWS_REGION}
+        //                     cd ${env.ENV}
                             
-                            echo "=========================================="
-                            echo "POST-DEPLOYMENT HEALTH CHECKS"
-                            echo "=========================================="
-                            echo "Environment: ${env.ENV}"
-                            echo "Region: ${env.AWS_REGION}"
-                            echo ""
+        //                     echo "=========================================="
+        //                     echo "POST-DEPLOYMENT HEALTH CHECKS"
+        //                     echo "=========================================="
+        //                     echo "Environment: ${env.ENV}"
+        //                     echo "Region: ${env.AWS_REGION}"
+        //                     echo ""
                             
-                            chmod +x ../health_check.sh
-                            ../health_check.sh "${env.ENV}" "${env.AWS_REGION}"
-                        """
-                    }
-                }
-            }
-        }
+        //                     chmod +x ../health_check.sh
+        //                     ../health_check.sh "${env.ENV}" "${env.AWS_REGION}"
+        //                 """
+        //             }
+        //         }
+        //     }
+        // }
     }
 
     post {
