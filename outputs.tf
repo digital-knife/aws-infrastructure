@@ -249,3 +249,12 @@ output "deployment_summary" {
     }
   }
 }
+output "alb_logs_bucket" {
+  description = "S3 bucket for ALB access logs"
+  value       = aws_s3_bucket.alb_logs.bucket
+}
+
+output "alb_logs_bucket_region" {
+  description = "Region of ALB logs bucket"
+  value       = data.aws_region.current.name
+}

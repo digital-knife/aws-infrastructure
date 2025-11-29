@@ -9,12 +9,16 @@ resource "aws_lb" "main" {
   enable_http2                     = true
   enable_cross_zone_load_balancing = true
 
-  # ADD THIS BLOCK - Enable access logs to permanent bucket
+  # BEST PRACTICE: Enable access logs to regional bucket
+  # Bucket is automatically created in the same region as the ALB
   access_logs {
-    bucket  = "centralized-alb-logs-${data.aws_caller_identity.current.account_id}"
+    bucket  = aws_s3_bucket.alb_logs.bucket
     prefix  = var.environment
     enabled = true
   }
+
+  # BEST PRACTICE: Add drop_invalid_header_fields for security
+  drop_invalid_header_fields = true
 
   tags = merge(
     local.common_tags,
@@ -22,6 +26,11 @@ resource "aws_lb" "main" {
       Name = "${local.name_prefix}-alb"
     }
   )
+
+  # Ensure S3 bucket and policy exist before creating ALB
+  depends_on = [
+    aws_s3_bucket_policy.alb_logs
+  ]
 }
 
 # Target Group - Defines health check and routing for web servers
@@ -51,6 +60,9 @@ resource "aws_lb_target_group" "web" {
     enabled = false
     type    = "lb_cookie"
   }
+
+  # BEST PRACTICE: Add connection draining attributes
+  connection_termination = false
 
   tags = merge(
     local.common_tags,
