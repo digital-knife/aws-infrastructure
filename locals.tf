@@ -24,7 +24,7 @@ locals {
       ManagedBy   = "Terraform"
       Owner       = var.owner
       AccountID   = data.aws_caller_identity.current.account_id
-      Region      = data.aws_region.current.name
+      Region      = data.aws_region.current.id
     },
     var.vpc_tag != "" ? { CustomTag = var.vpc_tag } : {}
   )

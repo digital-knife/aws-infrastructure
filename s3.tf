@@ -1,6 +1,7 @@
 # S3 Bucket for demo purposes
 resource "aws_s3_bucket" "demo_bucket" {
-  bucket = local.s3_bucket_name
+  bucket        = local.s3_bucket_name
+  force_destroy = true
 
   tags = merge(
     local.common_tags,
