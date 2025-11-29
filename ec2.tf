@@ -13,20 +13,23 @@ resource "aws_instance" "bastion" {
 
   user_data = <<-EOF
               #!/bin/bash
-              echo "Waiting for internet..." > /tmp/user-data.log
+              exec > /tmp/user-data.log 2>&1
+              set -x
+              
+              echo "Waiting for internet..."
               until ping -c 1 8.8.8.8 &> /dev/null; do
                 sleep 5
               done
-              echo "Internet ready" >> /tmp/user-data.log
+              echo "Internet ready"
               
-              yum install -y amazon-ssm-agent htop vim wget curl >> /tmp/user-data.log 2>&1
+              yum install -y amazon-ssm-agent htop vim wget curl
               systemctl enable amazon-ssm-agent
               systemctl start amazon-ssm-agent
               
               echo "Bastion ready - ${var.environment}" > /etc/motd
               
-              yum update -y &
-              echo "User data complete" >> /tmp/user-data.log
+              nohup yum update -y > /tmp/yum-update.log 2>&1 &
+              echo "User data complete"
               EOF
 
   tags = merge(
@@ -56,35 +59,45 @@ resource "aws_instance" "web_1" {
 
   user_data = <<-EOF
               #!/bin/bash
-              set -x  # Debug mode
-              exec > >(tee /var/log/user-data.log)
-              exec 2>&1
+              exec > /var/log/user-data.log 2>&1
+              set -ex
               
-              echo "=== Starting user_data for Web Server 1 at $(date) ==="
+              echo "=== Web Server 1 Startup: $(date) ==="
               
-              # Wait for internet connectivity via NAT Gateway
-              echo "Waiting for internet connectivity..."
-              until ping -c 1 8.8.8.8 &> /dev/null; do
-                echo "Still waiting for internet... $(date)"
+              # Wait for internet
+              echo "Waiting for internet..."
+              for i in {1..60}; do
+                if ping -c 1 8.8.8.8 &> /dev/null; then
+                  echo "Internet connected"
+                  break
+                fi
                 sleep 5
               done
-              echo "Internet connectivity established at $(date)"
               
-              # Install httpd and SSM agent FIRST
+              # Install httpd and SSM
               echo "Installing httpd and amazon-ssm-agent..."
               yum install -y httpd amazon-ssm-agent
               
-              # Start services immediately
-              echo "Starting httpd service..."
+              # Start httpd
+              echo "Starting httpd..."
               systemctl start httpd
               systemctl enable httpd
               
-              echo "Starting SSM agent..."
+              # Verify httpd is running
+              if systemctl is-active httpd; then
+                echo "✓ httpd is running"
+              else
+                echo "✗ httpd failed to start"
+                systemctl status httpd
+                exit 1
+              fi
+              
+              # Start SSM
               systemctl start amazon-ssm-agent
               systemctl enable amazon-ssm-agent
               
-              # CREATE INDEX.HTML IMMEDIATELY - Critical for ALB health checks
-              echo "Creating index.html for ALB health checks..."
+              # Create index.html
+              echo "Creating index.html..."
               cat > /var/www/html/index.html << 'HTML'
 <!DOCTYPE html>
 <html>
@@ -112,114 +125,111 @@ resource "aws_instance" "web_1" {
 </html>
 HTML
               
-              # Set proper permissions for Apache
-              echo "Setting file permissions..."
+              # Set permissions
               chmod 644 /var/www/html/index.html
               chown apache:apache /var/www/html/index.html
               
-              # Get instance metadata and update index.html
-              echo "Fetching instance metadata..."
-              INSTANCE_ID=$(ec2-metadata --instance-id 2>/dev/null | cut -d " " -f 2 || echo "unknown")
-              AZ=$(ec2-metadata --availability-zone 2>/dev/null | cut -d " " -f 2 || echo "unknown")
+              # Get metadata
+              INSTANCE_ID=$(ec2-metadata --instance-id 2>/dev/null | cut -d " " -f 2)
+              AZ=$(ec2-metadata --availability-zone 2>/dev/null | cut -d " " -f 2)
+              INSTANCE_ID=$${INSTANCE_ID:-unknown}
+              AZ=$${AZ:-unknown}
               
-              echo "Updating index.html with Instance ID: $INSTANCE_ID, AZ: $AZ"
+              # Update index.html
               sed -i "s/__INSTANCE_ID__/$INSTANCE_ID/g" /var/www/html/index.html
               sed -i "s/__AZ__/$AZ/g" /var/www/html/index.html
               
-              # Restart httpd to ensure it's serving the new content
-              echo "Restarting httpd to serve updated content..."
+              # Restart httpd
               systemctl restart httpd
               
-              # Verify index.html was created successfully
-              echo "Verifying index.html creation..."
+              # Verify index.html exists
               if [ -f /var/www/html/index.html ]; then
-                echo "✓ index.html exists"
-                echo "Content preview:"
-                head -5 /var/www/html/index.html
+                echo "✓ index.html created"
+                ls -la /var/www/html/index.html
               else
-                echo "✗ ERROR: index.html was not created!"
+                echo "✗ ERROR: index.html missing!"
+                exit 1
               fi
               
-              # Test local httpd response
-              echo "Testing local httpd response..."
-              curl -s http://localhost/ | head -2 || echo "ERROR: httpd not responding"
+              # Test httpd response
+              sleep 2
+              if curl -s http://localhost/ | grep -q "Web Server 1"; then
+                echo "✓ httpd responding correctly"
+              else
+                echo "✗ httpd not responding"
+                curl -v http://localhost/ || true
+              fi
               
-              echo "=== Critical setup complete. ALB health checks should pass. ==="
+              echo "=== CRITICAL SETUP COMPLETE ==="
               
-              # NOW install CloudWatch agent (non-critical, failures won't break health checks)
-              echo "Installing CloudWatch agent (non-critical)..."
-              yum install -y amazon-cloudwatch-agent || {
-                echo "WARNING: CloudWatch agent installation failed, but continuing..."
-              }
+              # Install CloudWatch (non-critical)
+              echo "Installing CloudWatch agent..."
+              yum install -y amazon-cloudwatch-agent || echo "WARNING: CloudWatch install failed"
               
-              # Configure CloudWatch agent
+              # Create config directory
+              mkdir -p /opt/aws/amazon-cloudwatch-agent/etc
+              
+              # Configure CloudWatch
               cat > /opt/aws/amazon-cloudwatch-agent/etc/config.json << 'CWCONFIG'
-              {
-                "metrics": {
-                  "namespace": "CustomMetrics/${var.environment}",
-                  "metrics_collected": {
-                    "cpu": {
-                      "measurement": [{"name": "cpu_usage_idle", "rename": "CPU_IDLE", "unit": "Percent"}],
-                      "totalcpu": false
-                    },
-                    "disk": {
-                      "measurement": [{"name": "used_percent", "rename": "DISK_USED", "unit": "Percent"}],
-                      "resources": ["/"]
-                    },
-                    "mem": {
-                      "measurement": [{"name": "mem_used_percent", "rename": "MEMORY_USED", "unit": "Percent"}]
-                    }
-                  }
-                }
-              }
+{
+  "metrics": {
+    "namespace": "CustomMetrics/${var.environment}",
+    "metrics_collected": {
+      "cpu": {
+        "measurement": [{"name": "cpu_usage_idle", "rename": "CPU_IDLE", "unit": "Percent"}],
+        "totalcpu": false
+      },
+      "disk": {
+        "measurement": [{"name": "used_percent", "rename": "DISK_USED", "unit": "Percent"}],
+        "resources": ["/"]
+      },
+      "mem": {
+        "measurement": [{"name": "mem_used_percent", "rename": "MEMORY_USED", "unit": "Percent"}]
+      }
+    }
+  }
+}
 CWCONFIG
               
               # Start CloudWatch agent
-              /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
-                -a fetch-config -m ec2 -s \
-                -c file:/opt/aws/amazon-cloudwatch-agent/etc/config.json || {
-                echo "WARNING: CloudWatch agent start failed"
-              }
+              if [ -f /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl ]; then
+                /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+                  -a fetch-config -m ec2 -s \
+                  -c file:/opt/aws/amazon-cloudwatch-agent/etc/config.json || echo "WARNING: CloudWatch start failed"
+              fi
               
-              # Create custom metrics script
+              # Create metrics script
               cat > /usr/local/bin/custom-metrics.sh << 'METRICS'
 #!/bin/bash
-INSTANCE_ID=$(ec2-metadata --instance-id | cut -d " " -f 2)
-REGION=$(ec2-metadata --availability-zone | sed 's/[a-z]$//')
+INSTANCE_ID=$(ec2-metadata --instance-id 2>/dev/null | cut -d " " -f 2)
+REGION=$(ec2-metadata --availability-zone 2>/dev/null | cut -d " " -f 2 | sed 's/.$//')
 
-# Check httpd service
+INSTANCE_ID=$${INSTANCE_ID:-unknown}
+REGION=$${REGION:-${var.aws_region}}
+
 HTTPD_STATUS=$(systemctl is-active httpd &>/dev/null && echo 1 || echo 0)
-
-# Days since last yum update
-LAST_UPDATE=$(rpm -qa --last | head -1 | awk '{print $3,$4,$5}')
-DAYS_SINCE=$(( ($(date +%s) - $(date -d "$LAST_UPDATE" +%s)) / 86400 ))
-
-# Ping test
 PING_STATUS=$(ping -c 1 8.8.8.8 &>/dev/null && echo 1 || echo 0)
 
-# Push to CloudWatch
 aws cloudwatch put-metric-data --region $REGION \
   --namespace "CustomMetrics/${var.environment}" \
-  --metric-name httpd_status --value $HTTPD_STATUS --dimensions InstanceId=$INSTANCE_ID
-  
+  --metric-name httpd_status --value $HTTPD_STATUS \
+  --dimensions InstanceId=$INSTANCE_ID 2>/dev/null || true
+
 aws cloudwatch put-metric-data --region $REGION \
   --namespace "CustomMetrics/${var.environment}" \
-  --metric-name days_since_yum_update --value $DAYS_SINCE --dimensions InstanceId=$INSTANCE_ID
-  
-aws cloudwatch put-metric-data --region $REGION \
-  --namespace "CustomMetrics/${var.environment}" \
-  --metric-name internet_connectivity --value $PING_STATUS --dimensions InstanceId=$INSTANCE_ID
+  --metric-name internet_connectivity --value $PING_STATUS \
+  --dimensions InstanceId=$INSTANCE_ID 2>/dev/null || true
 METRICS
               
               chmod +x /usr/local/bin/custom-metrics.sh
-              echo "*/5 * * * * /usr/local/bin/custom-metrics.sh" | crontab - || echo "WARNING: Cron setup failed"
               
-              # Background yum update (non-blocking)
-              echo "Starting background yum update..."
+              # Add to crontab
+              (crontab -l 2>/dev/null; echo "*/5 * * * * /usr/local/bin/custom-metrics.sh") | crontab - || echo "WARNING: Cron failed"
+              
+              # Background yum update
               nohup yum update -y > /tmp/yum-update.log 2>&1 &
               
-              echo "=== User data complete for Web Server 1 at $(date) ==="
-              echo "=== All services should be healthy and ready ==="
+              echo "=== Web Server 1 Complete: $(date) ==="
               EOF
 
   tags = merge(
@@ -250,35 +260,45 @@ resource "aws_instance" "web_2" {
 
   user_data = <<-EOF
               #!/bin/bash
-              set -x  # Debug mode
-              exec > >(tee /var/log/user-data.log)
-              exec 2>&1
+              exec > /var/log/user-data.log 2>&1
+              set -ex
               
-              echo "=== Starting user_data for Web Server 2 at $(date) ==="
+              echo "=== Web Server 2 Startup: $(date) ==="
               
-              # Wait for internet connectivity via NAT Gateway
-              echo "Waiting for internet connectivity..."
-              until ping -c 1 8.8.8.8 &> /dev/null; do
-                echo "Still waiting for internet... $(date)"
+              # Wait for internet
+              echo "Waiting for internet..."
+              for i in {1..60}; do
+                if ping -c 1 8.8.8.8 &> /dev/null; then
+                  echo "Internet connected"
+                  break
+                fi
                 sleep 5
               done
-              echo "Internet connectivity established at $(date)"
               
-              # Install httpd and SSM agent FIRST
+              # Install httpd and SSM
               echo "Installing httpd and amazon-ssm-agent..."
               yum install -y httpd amazon-ssm-agent
               
-              # Start services immediately
-              echo "Starting httpd service..."
+              # Start httpd
+              echo "Starting httpd..."
               systemctl start httpd
               systemctl enable httpd
               
-              echo "Starting SSM agent..."
+              # Verify httpd is running
+              if systemctl is-active httpd; then
+                echo "✓ httpd is running"
+              else
+                echo "✗ httpd failed to start"
+                systemctl status httpd
+                exit 1
+              fi
+              
+              # Start SSM
               systemctl start amazon-ssm-agent
               systemctl enable amazon-ssm-agent
               
-              # CREATE INDEX.HTML IMMEDIATELY - Critical for ALB health checks
-              echo "Creating index.html for ALB health checks..."
+              # Create index.html
+              echo "Creating index.html..."
               cat > /var/www/html/index.html << 'HTML'
 <!DOCTYPE html>
 <html>
@@ -306,114 +326,111 @@ resource "aws_instance" "web_2" {
 </html>
 HTML
               
-              # Set proper permissions for Apache
-              echo "Setting file permissions..."
+              # Set permissions
               chmod 644 /var/www/html/index.html
               chown apache:apache /var/www/html/index.html
               
-              # Get instance metadata and update index.html
-              echo "Fetching instance metadata..."
-              INSTANCE_ID=$(ec2-metadata --instance-id 2>/dev/null | cut -d " " -f 2 || echo "unknown")
-              AZ=$(ec2-metadata --availability-zone 2>/dev/null | cut -d " " -f 2 || echo "unknown")
+              # Get metadata
+              INSTANCE_ID=$(ec2-metadata --instance-id 2>/dev/null | cut -d " " -f 2)
+              AZ=$(ec2-metadata --availability-zone 2>/dev/null | cut -d " " -f 2)
+              INSTANCE_ID=$${INSTANCE_ID:-unknown}
+              AZ=$${AZ:-unknown}
               
-              echo "Updating index.html with Instance ID: $INSTANCE_ID, AZ: $AZ"
+              # Update index.html
               sed -i "s/__INSTANCE_ID__/$INSTANCE_ID/g" /var/www/html/index.html
               sed -i "s/__AZ__/$AZ/g" /var/www/html/index.html
               
-              # Restart httpd to ensure it's serving the new content
-              echo "Restarting httpd to serve updated content..."
+              # Restart httpd
               systemctl restart httpd
               
-              # Verify index.html was created successfully
-              echo "Verifying index.html creation..."
+              # Verify index.html exists
               if [ -f /var/www/html/index.html ]; then
-                echo "✓ index.html exists"
-                echo "Content preview:"
-                head -5 /var/www/html/index.html
+                echo "✓ index.html created"
+                ls -la /var/www/html/index.html
               else
-                echo "✗ ERROR: index.html was not created!"
+                echo "✗ ERROR: index.html missing!"
+                exit 1
               fi
               
-              # Test local httpd response
-              echo "Testing local httpd response..."
-              curl -s http://localhost/ | head -2 || echo "ERROR: httpd not responding"
+              # Test httpd response
+              sleep 2
+              if curl -s http://localhost/ | grep -q "Web Server 2"; then
+                echo "✓ httpd responding correctly"
+              else
+                echo "✗ httpd not responding"
+                curl -v http://localhost/ || true
+              fi
               
-              echo "=== Critical setup complete. ALB health checks should pass. ==="
+              echo "=== CRITICAL SETUP COMPLETE ==="
               
-              # NOW install CloudWatch agent (non-critical, failures won't break health checks)
-              echo "Installing CloudWatch agent (non-critical)..."
-              yum install -y amazon-cloudwatch-agent || {
-                echo "WARNING: CloudWatch agent installation failed, but continuing..."
-              }
+              # Install CloudWatch (non-critical)
+              echo "Installing CloudWatch agent..."
+              yum install -y amazon-cloudwatch-agent || echo "WARNING: CloudWatch install failed"
               
-              # Configure CloudWatch agent
+              # Create config directory
+              mkdir -p /opt/aws/amazon-cloudwatch-agent/etc
+              
+              # Configure CloudWatch
               cat > /opt/aws/amazon-cloudwatch-agent/etc/config.json << 'CWCONFIG'
-              {
-                "metrics": {
-                  "namespace": "CustomMetrics/${var.environment}",
-                  "metrics_collected": {
-                    "cpu": {
-                      "measurement": [{"name": "cpu_usage_idle", "rename": "CPU_IDLE", "unit": "Percent"}],
-                      "totalcpu": false
-                    },
-                    "disk": {
-                      "measurement": [{"name": "used_percent", "rename": "DISK_USED", "unit": "Percent"}],
-                      "resources": ["/"]
-                    },
-                    "mem": {
-                      "measurement": [{"name": "mem_used_percent", "rename": "MEMORY_USED", "unit": "Percent"}]
-                    }
-                  }
-                }
-              }
+{
+  "metrics": {
+    "namespace": "CustomMetrics/${var.environment}",
+    "metrics_collected": {
+      "cpu": {
+        "measurement": [{"name": "cpu_usage_idle", "rename": "CPU_IDLE", "unit": "Percent"}],
+        "totalcpu": false
+      },
+      "disk": {
+        "measurement": [{"name": "used_percent", "rename": "DISK_USED", "unit": "Percent"}],
+        "resources": ["/"]
+      },
+      "mem": {
+        "measurement": [{"name": "mem_used_percent", "rename": "MEMORY_USED", "unit": "Percent"}]
+      }
+    }
+  }
+}
 CWCONFIG
               
               # Start CloudWatch agent
-              /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
-                -a fetch-config -m ec2 -s \
-                -c file:/opt/aws/amazon-cloudwatch-agent/etc/config.json || {
-                echo "WARNING: CloudWatch agent start failed"
-              }
+              if [ -f /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl ]; then
+                /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+                  -a fetch-config -m ec2 -s \
+                  -c file:/opt/aws/amazon-cloudwatch-agent/etc/config.json || echo "WARNING: CloudWatch start failed"
+              fi
               
-              # Create custom metrics script
+              # Create metrics script
               cat > /usr/local/bin/custom-metrics.sh << 'METRICS'
 #!/bin/bash
-INSTANCE_ID=$(ec2-metadata --instance-id | cut -d " " -f 2)
-REGION=$(ec2-metadata --availability-zone | sed 's/[a-z]$//')
+INSTANCE_ID=$(ec2-metadata --instance-id 2>/dev/null | cut -d " " -f 2)
+REGION=$(ec2-metadata --availability-zone 2>/dev/null | cut -d " " -f 2 | sed 's/.$//')
 
-# Check httpd service
+INSTANCE_ID=$${INSTANCE_ID:-unknown}
+REGION=$${REGION:-${var.aws_region}}
+
 HTTPD_STATUS=$(systemctl is-active httpd &>/dev/null && echo 1 || echo 0)
-
-# Days since last yum update
-LAST_UPDATE=$(rpm -qa --last | head -1 | awk '{print $3,$4,$5}')
-DAYS_SINCE=$(( ($(date +%s) - $(date -d "$LAST_UPDATE" +%s)) / 86400 ))
-
-# Ping test
 PING_STATUS=$(ping -c 1 8.8.8.8 &>/dev/null && echo 1 || echo 0)
 
-# Push to CloudWatch
 aws cloudwatch put-metric-data --region $REGION \
   --namespace "CustomMetrics/${var.environment}" \
-  --metric-name httpd_status --value $HTTPD_STATUS --dimensions InstanceId=$INSTANCE_ID
-  
+  --metric-name httpd_status --value $HTTPD_STATUS \
+  --dimensions InstanceId=$INSTANCE_ID 2>/dev/null || true
+
 aws cloudwatch put-metric-data --region $REGION \
   --namespace "CustomMetrics/${var.environment}" \
-  --metric-name days_since_yum_update --value $DAYS_SINCE --dimensions InstanceId=$INSTANCE_ID
-  
-aws cloudwatch put-metric-data --region $REGION \
-  --namespace "CustomMetrics/${var.environment}" \
-  --metric-name internet_connectivity --value $PING_STATUS --dimensions InstanceId=$INSTANCE_ID
+  --metric-name internet_connectivity --value $PING_STATUS \
+  --dimensions InstanceId=$INSTANCE_ID 2>/dev/null || true
 METRICS
               
               chmod +x /usr/local/bin/custom-metrics.sh
-              echo "*/5 * * * * /usr/local/bin/custom-metrics.sh" | crontab - || echo "WARNING: Cron setup failed"
               
-              # Background yum update (non-blocking)
-              echo "Starting background yum update..."
+              # Add to crontab
+              (crontab -l 2>/dev/null; echo "*/5 * * * * /usr/local/bin/custom-metrics.sh") | crontab - || echo "WARNING: Cron failed"
+              
+              # Background yum update
               nohup yum update -y > /tmp/yum-update.log 2>&1 &
               
-              echo "=== User data complete for Web Server 2 at $(date) ==="
-              echo "=== All services should be healthy and ready ==="
+              echo "=== Web Server 2 Complete: $(date) ==="
               EOF
 
   tags = merge(
