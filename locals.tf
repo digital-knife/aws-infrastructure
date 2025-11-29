@@ -1,5 +1,16 @@
+# ============================================================================
+# Data Sources
+# ============================================================================
+
+# Get current AWS region
+data "aws_region" "current" {}
+
 # Get AWS account ID for tagging and resource naming
 data "aws_caller_identity" "current" {}
+
+# ============================================================================
+# Local Variables
+# ============================================================================
 
 locals {
   project_base = var.vpc_name != "" ? var.vpc_name : var.project_name
@@ -13,6 +24,7 @@ locals {
       ManagedBy   = "Terraform"
       Owner       = var.owner
       AccountID   = data.aws_caller_identity.current.account_id
+      Region      = data.aws_region.current.name
     },
     var.vpc_tag != "" ? { CustomTag = var.vpc_tag } : {}
   )
